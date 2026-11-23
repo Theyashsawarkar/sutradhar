@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- `scripts/amo-submit.mjs` submits a release to addons.mozilla.org (listed) with
+  the store build, the source archive and the listing in
+  `packaging/amo-metadata.json`; the API key pair stays in
+  `~/.config/sutradhar/amo.toml`. (Firefox and Zen block every extension from
+  Mozilla's own sites, so this can't be done through sutradhar itself.)
+
 ## 0.1.11 (2026-11-23)
 
 - **Pause / take over:** a Pause button on the "working here" pill, in the

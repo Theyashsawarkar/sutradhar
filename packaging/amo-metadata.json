@@ -1,0 +1,24 @@
+{
+  "categories": [
+    "other"
+  ],
+  "summary": {
+    "en-US": "Let any AI agent (Claude Code, Codex, Gemini, any MCP client) use your real browser, the way you do. Payments, passwords and one-time codes always stay yours."
+  },
+  "description": {
+    "en-US": "sutradhar lets any AI agent (Claude Code, Codex, opencode, Gemini CLI, or any MCP client) use your real browser the way you do: open tabs, read pages, click, type, fill forms, upload and download files, save PDFs and record replays, signed in as you.\n\nIt needs its companion program, the sutradhar daemon (open source, same project), which this extension talks to through native messaging. Install it first: https://github.com/Theyashsawarkar/sutradhar#install\n\nWhat stays yours:\n• It never pays, never types a password, card number or one-time code, and never solves a CAPTCHA. The page itself refuses those steps; you get a notification and a \"Your turn\" card, do it yourself and press Done.\n• It works in its own \"sutra\" tab group, in the background, while you use your own tabs. Pause takes over any time; Stop ends everything.\n• Page content reaches agents marked untrusted. Nothing is sent anywhere: the extension talks only to the program on your own computer, and collects no data.\n\nWhat you see: \"sutradhar is working here\" with a glowing border, and a second pointer that glides to what it touches, becomes a hand over links, says what it's doing, and shows the keys it presses.\n\nOpen source (MIT): https://github.com/Theyashsawarkar/sutradhar"
+  },
+  "homepage": {
+    "url": {
+      "en-US": "https://theyashsawarkar.github.io/sutradhar/"
+    }
+  },
+  "support_url": {
+    "en-US": "https://github.com/Theyashsawarkar/sutradhar/issues"
+  },
+  "requires_payment": false,
+  "version": {
+    "license": "MIT",
+    "approval_notes": "sutradhar is a browser-automation extension for AI agents. It does nothing on its own: it talks only to its companion program on the user's own computer, through native messaging (host name \"sutradhar\"), and that program (open source, in the same repository) is what agents connect to.\n\nSource code: the attached archive is the tagged release. Build: Node.js 22+ and pnpm, then `pnpm install && pnpm build`; the Firefox package is dist/firefox-amo (dist/sutradhar-amo.xpi). esbuild bundles TypeScript; nothing is minified.\n\nNotes on the linter warnings:\n- chrome.debugger and chrome.dom calls live in code shared with the Chrome build and only run when those APIs exist (Chrome); on Firefox they are never reached.\n- The innerHTML assignments set fixed SVG/markup strings that ship inside the extension (the on-page pointer); no page or remote content is ever inserted.\n- <all_urls>, webRequest/webRequestBlocking, tabs, scripting, downloads, bookmarks, history and cookies are the browser actions an agent can ask for (as a person would do them). Cookies, history and bookmarks are read only when an agent asks; webRequestBlocking is used only for tabs in sutradhar's own tab group, when an agent sets a testing rule.\n- No data is collected or sent anywhere (data_collection_permissions: none)."
+  }
+}

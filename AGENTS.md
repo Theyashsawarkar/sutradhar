@@ -33,6 +33,7 @@ command; docs/adr holds the decisions.
   `version` in package.json bumped to match (it flows into both manifests and
   the CLI). After bumping, run `pnpm release-manifest` so `updates.json`
   (what Firefox/Zen check for self-updates) names the new version, and commit
-  it with the release.
+  it with the release. Then `node scripts/amo-submit.mjs` sends it to
+  addons.mozilla.org (key pair in ~/.config/sutradhar/amo.toml, never in git).
 - Keys: the extension's "Stop every agent" command has no default key (the
   global one is Super+Shift+Delete in Vayu's sway config, annotated there).
