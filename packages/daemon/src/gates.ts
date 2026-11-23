@@ -43,10 +43,10 @@ export async function openGate(g: Omit<Gate, 'id' | 'created' | 'resolve'>, time
     shown = notify({ title: summary, body, urgency: 'critical', actions, onAction });
     // 2. The tab, with the "Your turn" card.
     browser?.client.ui.show.mutate({
-      tab: g.tab, focus: g.kind === 'handoff',
+      // Never yank the user's screen: the notification's "Show me" brings the tab forward.
+      tab: g.tab, focus: false,
       state: { mode: 'waiting', id, kind: g.kind, session: g.session, title: g.title, what: g.what, detail: g.reason, why: g.why },
     }).catch(() => {});
-    if (g.kind === 'handoff') void bringForward(g, false);
     // 3. A reminder, then give up.
     if (g.kind === 'handoff' && cfg.handoff.reminder_minutes > 0) {
       reminder = setTimeout(() => {

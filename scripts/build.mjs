@@ -66,7 +66,7 @@ const manifests = {
       update_url: 'https://raw.githubusercontent.com/Theyashsawarkar/sutradhar/main/updates.json' } },
     browser_action: { default_popup: 'panel.html', default_title: 'Sutradhar', default_icon: common.icons },
     background: { scripts: ['background.js'], persistent: true },
-    permissions: [...perms, '<all_urls>'],
+    permissions: [...perms, 'tabGroups', '<all_urls>'],
     content_scripts: contentScripts(false),
   },
 };

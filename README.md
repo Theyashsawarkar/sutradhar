@@ -173,8 +173,11 @@ A typical run:
    ```
 4. `snapshot` again after the page changes.
 
-Agents work only in their own tabs (and popups those open). To use one of
-yours, an agent asks with `tab_attach`, and you approve it.
+**Side by side with you.** sutradhar works in its own tab group, **sutra** (the
+strings the sūtradhāra holds), in the background: every tab it opens, and every
+popup those open, goes there. You keep working in your tabs; it never switches
+your tab or window. Open the sutra group whenever you want to watch it work.
+Agents never touch tabs outside it unless you lend one (`tab_attach`).
 
 ## Your turn: what the agent never does
 
@@ -215,14 +218,22 @@ so a page can't press **Done** or **Allow** for you.
 
 ### What you see while it works
 
+- **The sutra tab group**: everything sutradhar does happens in its tabs, in
+  the background, while you work in yours.
 - **"sutradhar is working here"** in a pill at the bottom of the page, with a
   **Stop** button, and an accent border around the tab. You see sutradhar,
   never which agent is behind it: not on the page, not in notifications, not
   in the panel (the log on disk keeps the names, for you).
-- **A pointer that moves like a person's**: it glides to each element, a
-  ripple shows each click, a ring marks the field, and typing goes at a pace
-  you can follow (at most about 4 seconds for any text). In a tab you aren't
-  looking at, sutradhar works at full speed with no pointer.
+- **A pointer that moves like a person's**, with a "sutradhar" name tag: it
+  glides to each element, a ripple shows each click, a ring marks the field,
+  scrolling is smooth with the pointer over what scrolls, and typing goes at a
+  pace you can follow (at most about 4 seconds for any text). It sits in the
+  browser's top layer, above modal dialogs. In a tab you aren't looking at,
+  sutradhar works at full speed with no pointer.
+- **Your screen stays yours**: the real mouse and keyboard are used only when
+  sutradhar's tab is the one in front of a focused window, and never type
+  into another window. A popup from its tab doesn't take the front from you.
+  A hand-off notifies you; **Show me** brings the tab forward when you choose.
 - **No file picker pops up**: when a page's "add photo" button would open
   one, sutradhar hands the page the files directly.
 

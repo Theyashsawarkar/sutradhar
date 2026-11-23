@@ -14,7 +14,7 @@ const Tab = z.object({ tab: z.number() });
 
 export interface TabInfo {
   id: number; windowId: number; title: string; url: string; active: boolean; pinned: boolean; status: string;
-  audible: boolean; muted: boolean; groupId: number; incognito: boolean; agent?: string;
+  audible: boolean; muted: boolean; groupId: number; group?: string; incognito: boolean; agent?: string;
 }
 
 async function tabInfo(tab: any): Promise<TabInfo> {
@@ -22,17 +22,18 @@ async function tabInfo(tab: any): Promise<TabInfo> {
     id: tab.id, windowId: tab.windowId, title: tab.title ?? '', url: tab.url ?? '', active: !!tab.active,
     pinned: !!tab.pinned, status: tab.status, audible: !!tab.audible, muted: !!tab.mutedInfo?.muted,
     groupId: tab.groupId ?? -1, incognito: !!tab.incognito, agent: S.agentTabs.get(tab.id),
+    group: (tab.groupId ?? -1) >= 0 && ext.tabGroups ? (await ext.tabGroups.get(tab.groupId).catch(() => null))?.title : undefined,
   };
 }
 
 const colorNames = ['grey', 'blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan', 'orange'];
 
-async function group(tabIds: number[], title: string, color?: string) {
+export async function group(tabIds: number[], title: string, color?: string) {
   if (ext.tabs.group && ext.tabGroups) {
     try {
       const existing = (await ext.tabGroups.query({ title })).at?.(0) ?? (await ext.tabGroups.query({ title }))[0];
       const groupId = await ext.tabs.group({ tabIds, ...(existing ? { groupId: existing.id } : {}) });
-      await ext.tabGroups.update(groupId, { title, color: colorNames.includes(color ?? '') ? color : 'purple', collapsed: false });
+      await ext.tabGroups.update(groupId, { title, color: colorNames.includes(color ?? '') ? color : 'purple' });
       return groupId;
     } catch { return -1; }
   }

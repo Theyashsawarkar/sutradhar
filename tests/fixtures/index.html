@@ -70,6 +70,11 @@
     <iframe id="frame" title="Other origin" width="300" height="80"></iframe>
   </section>
 
+  <section aria-label="Modal">
+    <button id="open-modal" type="button">Open modal</button>
+    <dialog id="modal"><p>A modal, drawn in the top layer.</p><button id="in-modal" type="button">Inside modal</button></dialog>
+    <span id="modal-result"></span>
+  </section>
   <section aria-label="Hover"><span id="hoverme">Hover target</span> <span id="hover-result"></span></section>
   <div id="tall"></div>
   <button id="bottom">At the bottom</button> <span id="bottom-result"></span>
@@ -92,6 +97,8 @@
   $('file').onchange = async () => { const f = $('file').files[0]; $('file-result').textContent = f ? `${f.name} ${f.size} ${(await f.text()).trim()}` : 'none'; };
   // Like LinkedIn's "add media": a button that makes a file input and clicks it.
   $('photo').onclick = () => { const i = document.createElement('input'); i.type = 'file'; i.onchange = () => { $('photo-result').textContent = 'photo ' + i.files[0].name; }; i.click(); };
+  $('open-modal').onclick = () => $('modal').showModal();
+  $('in-modal').onclick = () => { $('modal-result').textContent = 'modal clicked'; $('modal').close(); };
   $('hoverme').addEventListener('mouseover', () => { $('hover-result').textContent = 'hovered'; });
   $('bottom').onclick = () => { $('bottom-result').textContent = 'bottom clicked'; };
   customElements.define('open-widget', class extends HTMLElement { constructor() { super(); const r = this.attachShadow({ mode: 'open' }); r.innerHTML = '<button>Open shadow button</button>'; r.querySelector('button').onclick = () => { $('shadow-result').textContent = 'open clicked'; }; } });

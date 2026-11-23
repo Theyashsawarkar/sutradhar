@@ -36,8 +36,11 @@ button { all: unset; cursor: pointer; border-radius: 999px; padding: 6px 14px; f
 .no { background: #313244; color: #cdd6f4; }
 .stop { background: #f38ba8; color: #1e1e2e; }
 button:focus-visible { outline: 2px solid var(--c); outline-offset: 2px; }
-.cursor { position: fixed; left: 0; top: 0; z-index: 2147483647; pointer-events: none; width: 26px; height: 30px;
-  transition: transform .42s cubic-bezier(.3,.7,.2,1), opacity .3s; filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
+.cursor { position: fixed; left: 0; top: 0; z-index: 2147483647; pointer-events: none;
+  transition: transform .42s cubic-bezier(.3,.7,.2,1), opacity .3s; filter: drop-shadow(0 2px 4px rgba(0,0,0,.4)); }
+.cursor svg { display: block; }
+.tag { position: absolute; left: 22px; top: 24px; padding: 2px 9px 3px; border-radius: 999px; background: #cba6f7; color: #1e1e2e;
+  font: 600 11.5px/1.4 system-ui, sans-serif; white-space: nowrap; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
 .ripple { position: fixed; z-index: 2147483646; pointer-events: none; width: 34px; height: 34px; margin: -17px 0 0 -17px;
   border-radius: 50%; border: 2px solid #cba6f7; background: rgba(203,166,247,.22); animation: ripple .5s ease-out forwards; }
 @keyframes ripple { from { transform: scale(.3); opacity: 1; } to { transform: scale(1.4); opacity: 0; } }
@@ -46,11 +49,33 @@ button:focus-visible { outline: 2px solid var(--c); outline-offset: 2px; }
 .brand { font-size: 11px; color: #7f849c; margin-top: 8px; }
 `;
 
+/**
+ * Pages draw modal dialogs in the browser's top layer, above everything else
+ * (LinkedIn's composer is one). A manual popover lives in that layer too, and
+ * the last one shown is on top, so our elements are popovers raised again
+ * every time they change.
+ */
+export function raise(el: HTMLElement | null) {
+  if (!el) return;
+  const anyEl = el as any;
+  if (typeof anyEl.showPopover !== 'function') return;
+  try { if (el.matches(':popover-open')) anyEl.hidePopover(); anyEl.showPopover(); } catch { /* not connected yet */ }
+}
+
+function topLayerHost(tag: string) {
+  const h = document.createElement(tag);
+  h.setAttribute('popover', 'manual');
+  // Undo the popover's default box: we position our own children.
+  h.style.cssText = 'all: initial; position: fixed; inset: 0; width: 0; height: 0; margin: 0; padding: 0; border: 0; background: transparent; overflow: visible; pointer-events: none; display: block;';
+  (document.documentElement ?? document.body).appendChild(h);
+  return h;
+}
+
 function ensure() {
-  if (root && host?.isConnected) return root;
-  host = document.createElement('sutradhar-overlay');
+  if (root && host?.isConnected) { raise(host); return root; }
+  host = topLayerHost('sutradhar-overlay');
   root = host.attachShadow({ mode: 'closed' });
-  (document.documentElement ?? document.body).appendChild(host);
+  raise(host);
   return root;
 }
 
@@ -120,23 +145,23 @@ let ringEl: HTMLElement | null = null;
 let pos = { x: -40, y: -40 };
 let hideTimer: ReturnType<typeof setTimeout> | undefined;
 
-const POINTER = '<svg viewBox="0 0 26 30" width="26" height="30" xmlns="http://www.w3.org/2000/svg"><path d="M3 2 L3 24 L9 18.5 L13.5 28 L18 26 L13.6 16.8 L21.5 16.8 Z" fill="#cba6f7" stroke="#1e1e2e" stroke-width="2" stroke-linejoin="round"/></svg>';
+const POINTER = '<svg viewBox="0 0 26 30" width="30" height="35" xmlns="http://www.w3.org/2000/svg"><path d="M3 2 L3 24 L9 18.5 L13.5 28 L18 26 L13.6 16.8 L21.5 16.8 Z" fill="#cba6f7" stroke="#1e1e2e" stroke-width="2" stroke-linejoin="round"/></svg>';
 
 function ensureCursor() {
   if (cursorRoot && cursorHost?.isConnected) return cursorRoot;
-  cursorHost = document.createElement('sutradhar-pointer');
+  cursorHost = topLayerHost('sutradhar-pointer');
   cursorRoot = cursorHost.attachShadow({ mode: 'closed' });
   const style = document.createElement('style');
   style.textContent = CSS;
   cursorEl = document.createElement('div');
   cursorEl.className = 'cursor';
-  cursorEl.innerHTML = POINTER;
+  cursorEl.innerHTML = POINTER + '<span class="tag">sutradhar</span>';
   cursorEl.style.transform = `translate(${pos.x}px, ${pos.y}px)`;
   ringEl = document.createElement('div');
   ringEl.className = 'focusring';
   ringEl.style.opacity = '0';
   cursorRoot.append(style, ringEl, cursorEl);
-  (document.documentElement ?? document.body).appendChild(cursorHost);
+  raise(cursorHost);
   return cursorRoot;
 }
 
@@ -144,6 +169,8 @@ function ensureCursor() {
 export async function moveCursor(x: number, y: number, opts: { click?: boolean; rect?: { x: number; y: number; width: number; height: number } } = {}) {
   if (window.top !== window || document.hidden) return;
   const root = ensureCursor();
+  // A modal may have opened since: stay above it.
+  raise(host); raise(cursorHost);
   clearTimeout(hideTimer);
   cursorEl!.style.opacity = '1';
   const far = Math.hypot(x - pos.x, y - pos.y);

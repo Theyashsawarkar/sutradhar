@@ -6,7 +6,8 @@ unset SWAYSOCK I3SOCK WAYLAND_DISPLAY DISPLAY
 here=$(cd "$(dirname "$0")/../.." && pwd)
 rt="/run/user/$(id -u)/sdt$$"
 mkdir -m 700 "$rt"
-trap 'rm -rf "$rt"' EXIT
+# The private bus may start a document portal that mounts a FUSE folder here: unmount it first.
+trap 'for m in $(grep -o " $rt/[^ ]*" /proc/mounts); do fusermount3 -u "$m" 2>/dev/null || fusermount -u "$m" 2>/dev/null; done; rm -rf "$rt"' EXIT
 export XDG_RUNTIME_DIR="$rt" GTK_A11Y=none NO_AT_BRIDGE=1 GTK_USE_PORTAL=0 GDK_DEBUG=no-portals
 dbus-run-session -- sh -eu -c '
   cfg="$XDG_RUNTIME_DIR/sway.conf"

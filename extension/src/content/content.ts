@@ -4,7 +4,7 @@
 import { find, locate, snapshot } from './snapshot.ts';
 import { pageMarkdown } from './markdown.ts';
 import {
-  armFiles, fileInputFor, filesTaken, focusEnd, prepare, scroll, selectAllIn, selectOption, synthClear, synthClick, synthDrag, synthHover, synthKey,
+  armFiles, scrollPoint, fileInputFor, filesTaken, focusEnd, focusStart, prepare, scroll, selectAllIn, selectOption, synthClear, synthClick, synthDrag, synthHover, synthKey,
   synthType, target, upload, waitFor,
 } from './actions.ts';
 import { DEFAULT_RISK, type RiskConfig } from './risk.ts';
@@ -50,14 +50,16 @@ function start() {
     risk: (a) => prepare(a.target, a.kind, risk, true).then((p) => p.risk).catch(() => ({ level: 'none' })),
     click: (a) => { const p = locate(a.target)!; synthClick(p ?? target(a.target), a.x, a.y, a.button, a.count, a.modifiers); return true; },
     hover: (a) => { synthHover(target(a.target), a.x, a.y); return true; },
-    type: async (a) => { const el = target(a.target); if (a.clear) synthClear(el); await synthType(el, a.value, a.delay); return true; },
+    type: async (a) => { const el = target(a.target); if (a.clear) synthClear(el); await synthType(el, a.value, a.delay, a.at); return true; },
     clear: (a) => { synthClear(target(a.target)); return true; },
     selectAll: (a) => { selectAllIn(target(a.target)); return true; },
     focusEnd: (a) => { focusEnd(target(a.target)); return true; },
+    focusStart: (a) => { focusStart(target(a.target)); return true; },
     focus: (a) => { (target(a.target) as HTMLElement).focus(); return true; },
     key: (a) => { synthKey(a.target ? target(a.target) : null, a.keys); return true; },
     select: (a) => selectOption(target(a.target), Array.isArray(a.value) ? a.value : [a.value]),
     scroll: (a) => scroll(a.target && Object.keys(a.target).length ? target(a.target) : undefined, a.direction, a.amount),
+    scrollPoint: (a) => scrollPoint(a.target && Object.keys(a.target).length ? target(a.target) : undefined),
     drag: async (a) => synthDrag(target(a.from), target(a.to), a.fx, a.fy, a.tx, a.ty),
     upload: (a) => upload(target(a.target), a.files),
     hasFileInput: (a) => !!fileInputFor(target(a.target)),

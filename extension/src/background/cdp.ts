@@ -21,6 +21,8 @@ async function attach(tabId: number) {
     attached.set(tabId, null);
     // A dialog the page hook missed must never freeze input: answer it here.
     await chrome.debugger.sendCommand({ tabId }, 'Page.enable').catch(() => {});
+    // sutradhar works in background tabs: have Chrome render and treat this one as focused anyway.
+    await chrome.debugger.sendCommand({ tabId }, 'Emulation.setFocusEmulationEnabled', { enabled: true }).catch(() => {});
   }
   const t = attached.get(tabId);
   if (t) clearTimeout(t);

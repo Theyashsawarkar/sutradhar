@@ -107,6 +107,17 @@ export const hubRouter = t.router({
     });
   }),
 
+  /** Is this tab's browser window the focused window right now (asked of sway)? */
+  osFocused: browserProc.input(z.object({ tab: z.number() })).query(async ({ input, ctx }) => {
+    if (!loadConfig().os_input.enabled) return false;
+    const b = D.browsers.get(ctx.conn.browserId!)!;
+    try {
+      const g = await b.client.page.geometry.query({ tab: input.tab });
+      const w = await os.findWindow(b.hello.kind, g.tabTitle);
+      return await os.isFocused(w as never);
+    } catch { return false; }
+  }),
+
   /** Real mouse/keyboard for a page step (Firefox/Zen trusted input). */
   osInput: browserProc.input(z.object({
     tab: z.number(), action: z.enum(['click', 'move', 'drag', 'key', 'type', 'focus', 'wheel']),
@@ -116,7 +127,7 @@ export const hubRouter = t.router({
   })).mutation(async ({ input, ctx }) => {
     if (!loadConfig().os_input.enabled) throw new TRPCError({ code: 'FORBIDDEN', message: 'OS input is turned off in config.toml' });
     const b = D.browsers.get(ctx.conn.browserId!)!;
-    return osAct(b.id, input.tab, input);
+    return osAct(b.id, input.tab, { ...input, noFocus: true });
   }),
 });
 
@@ -131,7 +142,7 @@ function handoffTitle(reason: string, step: string) {
 }
 
 /** One OS-level action in a tab's window; coordinates are the page's viewport pixels. */
-export async function osAct(browserId: string, tab: number, a: { action: string; x?: number; y?: number; x2?: number; y2?: number; button?: string; count?: number; keys?: string; text?: string; direction?: 'up' | 'down'; relative?: 'viewport' | 'window' | 'screen' }): Promise<string> {
+export async function osAct(browserId: string, tab: number, a: { noFocus?: boolean; action: string; x?: number; y?: number; x2?: number; y2?: number; button?: string; count?: number; keys?: string; text?: string; direction?: 'up' | 'down'; relative?: 'viewport' | 'window' | 'screen' }): Promise<string> {
   const b = D.browsers.get(browserId);
   if (!b) throw new TRPCError({ code: 'NOT_FOUND', message: `browser ${browserId} is not connected` });
   // Keys for the browser's own dialog (a file picker it opened) go to that dialog.
@@ -141,7 +152,10 @@ export async function osAct(browserId: string, tab: number, a: { action: string;
   }
   const g: PageGeometry | null = await b.client.page.geometry.query({ tab }).catch(() => null);
   const title = g?.tabTitle ?? '';
-  const w = await os.focusWindow(b.hello.kind, title);
+  // Page steps never take the screen: they only act if the browser already has focus.
+  const w = a.noFocus ? await os.findWindow(b.hello.kind, title) : await os.focusWindow(b.hello.kind, title);
+  // Never type or click into another window: the browser must really have focus now.
+  if (!(await os.isFocused(w as never))) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'the browser window is not in front; real input would land in another window' });
   const scale = await os.outputScale(w as never);
   const at = (x?: number, y?: number): { x: number; y: number } => {
     if (x === undefined || y === undefined) throw new TRPCError({ code: 'BAD_REQUEST', message: 'x and y are needed' });

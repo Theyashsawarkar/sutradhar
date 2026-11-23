@@ -6,7 +6,7 @@ import { createPeer, type Frame } from '../../../packages/protocol/src/rpc.ts';
 import { createJoiner, type Wire } from '../../../packages/protocol/src/framing.ts';
 import type { HubRouter } from '../../../packages/daemon/src/hub-router.ts';
 import type { Hello } from '../../../packages/protocol/src/schemas.ts';
-import { browserRouter } from './router.ts';
+import { browserRouter, group } from './router.ts';
 import { ext, isGecko, S } from './state.ts';
 
 const HOST = 'sutradhar';
@@ -88,8 +88,48 @@ function event(kind: string, tab: number | undefined, data: unknown) {
 ext.tabs.onCreated.addListener((tab: any) => {
   // A page opened by an agent's tab (popup, target=_blank) belongs to that agent too.
   const owner = tab.openerTabId !== undefined ? S.agentTabs.get(tab.openerTabId) : undefined;
-  if (owner) S.agentTabs.set(tab.id, owner);
+  if (owner) { S.agentTabs.set(tab.id, owner); freshPopups.set(tab.id, Date.now()); void group([tab.id], 'sutra'); }
   event('tab-created', tab.id, { url: tab.pendingUrl ?? tab.url, opener: tab.openerTabId, owner });
+});
+// The tab the user last had in front, per window: given back when an agent's popup steals the front.
+const userFront = new Map<number, number>();
+ext.tabs.query({ active: true }).then((tabs: { id: number; windowId: number }[]) => {
+  for (const t of tabs) if (!userFront.has(t.windowId)) userFront.set(t.windowId, t.id);
+}).catch(() => {});
+/** Popups an agent's tab just opened: if the browser brings one forward, the user's tab goes back in front. */
+const freshPopups = new Map<number, number>();
+const prevFront = new Map<number, number>();
+ext.tabs.onActivated.addListener((info: { tabId: number; windowId: number }) => {
+  if (!S.agentTabs.has(info.tabId)) {
+    const was = userFront.get(info.windowId);
+    if (was !== undefined && was !== info.tabId) prevFront.set(info.windowId, was);
+    userFront.set(info.windowId, info.tabId);
+    return;
+  }
+  const born = freshPopups.get(info.tabId);
+  if (born && Date.now() - born < 3000) {
+    const back = userFront.get(info.windowId);
+    if (back !== undefined && back !== info.tabId) ext.tabs.update(back, { active: true }).catch(() => {});
+  }
+});
+// Popups and target=_blank links opened from an agent's tab (Chrome reports the source here).
+ext.webNavigation.onCreatedNavigationTarget?.addListener(async (d: { sourceTabId: number; tabId: number }) => {
+  const owner = S.agentTabs.get(d.sourceTabId);
+  if (!owner) return;
+  freshPopups.set(d.tabId, Date.now());
+  void group([d.tabId], 'sutra');
+  if (!S.agentTabs.has(d.tabId)) {
+    S.agentTabs.set(d.tabId, owner);
+    event('tab-created', d.tabId, { opener: d.sourceTabId, owner });
+  }
+  const tab = await ext.tabs.get(d.tabId).catch(() => null);
+  const source = await ext.tabs.get(d.sourceTabId).catch(() => null);
+  if (tab?.active && source && !source.active) {
+    // The popup may already have been taken for the user's own front tab: then go one further back.
+    let back = userFront.get(tab.windowId);
+    if (back === d.tabId) { back = prevFront.get(tab.windowId); if (back !== undefined) userFront.set(tab.windowId, back); }
+    if (back !== undefined && back !== d.tabId) await ext.tabs.update(back, { active: true }).catch(() => {});
+  }
 });
 ext.tabs.onRemoved.addListener((tabId: number) => {
   S.agentTabs.delete(tabId); S.overlays.delete(tabId); S.net.delete(tabId);

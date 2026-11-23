@@ -147,7 +147,7 @@ def architecture():
     s.text(186, 366, "systemd user service · one per login · $XDG_RUNTIME_DIR/sutradhar/sock (0600)", "s")
     chips = [
         ("Sessions", "one per agent; its own tabs", "and tab group; locks"),
-        ("Risk gates", "hand-off: the user does it", "approve: the user says yes"),
+        ("Risk gates", "pay, passwords, OTPs:", "the user does it"),
         ("Notifications", "sent the moment a", "wait starts (akashvani)"),
         ("Action log", "every call, its result,", "~/.local/state/sutradhar"),
         ("Stop / resume", "one Stop cancels every", "call in every browser"),
@@ -168,7 +168,7 @@ def architecture():
     # Right column: the user, notifications, sway
     s.box(760, 84, 210, 200, "panel", 16, "ring-yellow")
     s.text(778, 108, "You", "h")
-    s.lines(778, 130, ["Notification: “claude needs", "you”, with Show me · Done ·", "I won’t (or Allow · Deny)", "", "In the tab: the yellow", "Your turn card, the panel,", "the Stop button"], "s", 16)
+    s.lines(778, 130, ["Notification: “sutradhar needs", "you”, with Show me · Done ·", "I won’t", "", "In the tab: the yellow", "Your turn card, the panel,", "the Stop button; the page", "shows sutradhar, not the agent"], "s", 16)
     s.box(760, 340, 210, 96, "panel", 16)
     s.text(778, 364, "sway (Wayland)", "h")
     s.lines(778, 384, ["virtual pointer device", "wtype virtual keyboard", "window geometry"], "s", 16)
@@ -296,7 +296,7 @@ def handoff_flow():
         ("msg", 1, 2, "page.act", "accent"),
         ("note", 2, 2, "risk = hand-off: a card field", "ring-yellow"),
         ("msg", 2, 1, "hub.gate (the step is NOT run)", "yellow"),
-        ("msg", 1, 3, "notification at once: “claude needs you”", "yellow", "Show me · Done · I won’t"),
+        ("msg", 1, 3, "notification at once: “sutradhar needs you”", "yellow", "Show me · Done · I won’t"),
         ("msg", 1, 2, "show the Your turn card, bring the tab forward", "yellow"),
         ("msg", 3, 2, "you type the card and pay yourself", "green"),
         ("msg", 3, 2, "Done (card, panel or notification)", "green"),
@@ -304,7 +304,7 @@ def handoff_flow():
         ("msg", 1, 0, "[handoff-done] the user did this step", "green", "reply"),
         ("gap", 4),
         ("note", 0, 3, "No answer: a reminder at 5 minutes, “timeout” at 15 · I won’t: “declined”, the agent stops and asks", ""),
-        ("note", 0, 3, "Send · publish · delete: the same path, but Allow lets the agent click it itself", ""),
+        ("note", 0, 3, "Everything else goes ahead without asking (approvals can be turned on in settings)", ""),
     ]
     return sequence("handoff-flow.svg", "Your turn: a payment step",
                     "When an agent's step touches a card, password, OTP or pay button, the page refuses it, the daemon "

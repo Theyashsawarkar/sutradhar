@@ -17,6 +17,8 @@ import { D, log, readLog, type BrowserConn, type Session } from './state.ts';
 import { agentProc, t, type Ctx } from './trpc.ts';
 
 const run = promisify(execFile);
+/** The tab group sutradhar works in: the strings the sūtradhāra holds. The user works outside it. */
+export const SUTRA = 'sutra';
 const TabArg = { tab: z.number().optional().describe('Tab id (from tabs); defaults to the tab this session used last') };
 
 // ------------------------------------------------------------------ sessions
@@ -65,7 +67,8 @@ async function tabFor(s: Session, tab?: number, open = true): Promise<{ b: Brows
   }
   if (s.tab !== undefined && s.tabs.has(s.tab)) return { b, tab: s.tab };
   if (!open) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'no tab yet: open one with tab_open or navigate' });
-  const info = await b.client.tabs.open.mutate({ url: 'about:blank', session: s.id, group: s.name, active: true, wait: false });
+  // Its own tab, in the background: the user keeps working in theirs.
+  const info = await b.client.tabs.open.mutate({ url: 'about:blank', session: s.id, group: SUTRA, active: false, wait: false });
   s.tabs.add(info.id); s.tab = info.id;
   return { b, tab: info.id };
 }
@@ -95,7 +98,7 @@ async function approve(s: Session, b: BrowserConn, tab: number, title: string, w
   if (o !== 'approved') throw new TRPCError({ code: 'FORBIDDEN', message: o === 'timeout' ? 'the user did not answer in time' : o === 'stopped' ? 'the user pressed Stop' : 'the user said no' });
 }
 
-const tabLine = (x: any, s: Session) => `${x.id}${x.active ? '*' : ''}  ${x.agent === s.id ? '[yours] ' : x.agent ? `[${x.agent}] ` : ''}${x.title || '(untitled)'} — ${x.url}`;
+const tabLine = (x: any, s: Session) => `${x.id}${x.active ? '*' : ''}  ${x.agent === s.id ? `[yours${x.group ? ' · ' + x.group : ''}] ` : x.agent ? `[${x.agent}] ` : ''}${x.title || '(untitled)'} — ${x.url}`;
 
 // ------------------------------------------------------------------ the tools
 export const agentRouter = t.router({
@@ -133,12 +136,12 @@ export const agentRouter = t.router({
       return list.map((x: any) => tabLine(x, s)).join('\n') + `\n\ncurrent tab: ${s.tab ?? 'none (tab_open or navigate makes one)'}`;
     }),
 
-  tab_open: agentProc.meta({ description: "Open a new tab (in this agent's tab group) and make it the current tab.", untrusted: true })
-    .input(z.object({ url: z.string().optional(), background: z.boolean().optional().describe("Don't switch to it") }))
+  tab_open: agentProc.meta({ description: "Open a new tab in the \"sutra\" tab group (sutradhar's own), in the background (the user keeps working in theirs), and make it the current tab.", untrusted: true })
+    .input(z.object({ url: z.string().optional(), front: z.boolean().optional().describe('Bring it to the front (only if the user asked to watch)') }))
     .mutation(async ({ ctx, input }) => {
       const s = sessionFor(ctx); const b = browserFor(s);
       return call(s, 'tab_open', { url: input.url }, async () => {
-        const info = await b.client.tabs.open.mutate({ url: input.url, session: s.id, group: s.name, active: !input.background });
+        const info = await b.client.tabs.open.mutate({ url: input.url, session: s.id, group: SUTRA, active: !!input.front });
         s.tabs.add(info.id); s.tab = info.id;
         return tabLine(info, s);
       });
@@ -151,7 +154,7 @@ export const agentRouter = t.router({
     return `closed tab ${tab}`;
   }),
 
-  tab_focus: agentProc.meta({ description: 'Bring one of your tabs to the front and make it the current tab.' }).input(z.object({ tab: z.number() })).mutation(async ({ ctx, input }) => {
+  tab_focus: agentProc.meta({ description: 'Bring one of your tabs to the front. Only when the user asks to watch or take over: sutradhar works in background tabs while the user uses theirs.' }).input(z.object({ tab: z.number() })).mutation(async ({ ctx, input }) => {
     const s = sessionFor(ctx); const { b, tab } = await tabFor(s, input.tab);
     const info = await b.client.tabs.focus.mutate({ tab });
     return tabLine(info, s);

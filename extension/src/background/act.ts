@@ -72,6 +72,15 @@ async function osInput(ctx: ActContext, action: object) {
   return hub().osInput.mutate({ tab: ctx.tabId, ...action } as never);
 }
 
+/** Real mouse/keyboard only when this tab is the one in front of a focused window: never over the user's work. */
+async function canUseRealInput(ctx: ActContext) {
+  if (!S.osInput) return false;
+  const tab = await ext.tabs.get(ctx.tabId).catch(() => null);
+  if (!tab?.active) return false;
+  // Whether its window really has focus is asked of the compositor (the daemon does, and never steals it).
+  return hub().osFocused.query({ tab: ctx.tabId }).catch(() => false);
+}
+
 /** Shows the visible pointer gliding to the element (and a ripple if it clicks). */
 async function point(ctx: ActContext, loc: Located, click: boolean) {
   if (Number.isNaN(loc.gx)) return;
@@ -93,14 +102,14 @@ async function clickAt(ctx: ActContext, loc: Located, step: { button?: 'left' | 
   if (!isGecko && !Number.isNaN(loc.gx)) { await cdp.click(ctx.tabId, loc.gx, loc.gy, button, count, mods); return ''; }
   // Firefox's popup blocker drops synthetic clicks on new-tab links: open it as the click would.
   if (isGecko && loc.p.href && button === 'left' && (loc.p.newTab || mods.includes('Control')) && !step.trusted) {
-    await ext.tabs.create({ url: loc.p.href, openerTabId: ctx.tabId, active: !mods.includes('Control') });
+    await ext.tabs.create({ url: loc.p.href, openerTabId: ctx.tabId, active: false });
     return ' (opened in a new tab)';
   }
-  if (isGecko && step.trusted && S.osInput) { await osInput(ctx, { action: 'click', x: loc.gx, y: loc.gy, button, count, modifiers: mods }); return ' (real mouse)'; }
+  if (isGecko && step.trusted && (await canUseRealInput(ctx))) { await osInput(ctx, { action: 'click', x: loc.gx, y: loc.gy, button, count, modifiers: mods }); return ' (real mouse)'; }
   const before = await content<number>(ctx.tabId, 0, 'changes');
   const url = (await ext.tabs.get(ctx.tabId)).url;
   await content(ctx.tabId, loc.frameId, 'click', { target: loc.target, x: loc.p.x, y: loc.p.y, button, count, modifiers: mods });
-  if (isGecko && S.osInput && S.autoRetry && !Number.isNaN(loc.gx) && step.trusted !== false && button === 'left') {
+  if (isGecko && S.autoRetry && !Number.isNaN(loc.gx) && step.trusted !== false && button === 'left' && (await canUseRealInput(ctx))) {
     await sleep(350);
     const after = await content<number>(ctx.tabId, 0, 'changes').catch(() => before + 1);
     const tab = await ext.tabs.get(ctx.tabId);
@@ -112,29 +121,29 @@ async function clickAt(ctx: ActContext, loc: Located, step: { button?: 'left' | 
   return '';
 }
 
-async function typeInto(ctx: ActContext, loc: Located, value: string, clear?: boolean, trusted?: boolean) {
+async function typeInto(ctx: ActContext, loc: Located, value: string, clear?: boolean, trusted?: boolean, at?: 'start' | 'end') {
   await point(ctx, loc, true);
   const delay = await typingDelay(ctx, value.length);
   if (!isGecko) {
-    await content(ctx.tabId, loc.frameId, clear ? 'selectAll' : 'focusEnd', { target: loc.target });
+    await content(ctx.tabId, loc.frameId, clear ? 'selectAll' : at === 'start' ? 'focusStart' : 'focusEnd', { target: loc.target });
     if (clear) await cdp.press(ctx.tabId, 'Backspace');
     await cdp.type(ctx.tabId, value, delay);
     return;
   }
-  if (trusted && S.osInput) {
+  if (trusted && (await canUseRealInput(ctx))) {
     await content(ctx.tabId, loc.frameId, clear ? 'selectAll' : 'focusEnd', { target: loc.target });
     await osInput(ctx, { action: 'focus' });
     if (clear) await osInput(ctx, { action: 'key', keys: 'BackSpace' });
     await osInput(ctx, { action: 'type', text: value });
     return;
   }
-  await content(ctx.tabId, loc.frameId, 'type', { target: loc.target, value, clear, delay });
+  await content(ctx.tabId, loc.frameId, 'type', { target: loc.target, value, clear, delay, at });
 }
 
 async function pressKeys(ctx: ActContext, keys: string, loc?: Located, trusted?: boolean) {
   if (loc) await content(ctx.tabId, loc.frameId, 'focus', { target: loc.target });
   if (!isGecko) { await cdp.press(ctx.tabId, keys); return; }
-  if (trusted && S.osInput) { await osInput(ctx, { action: 'key', keys }); return; }
+  if (trusted && (await canUseRealInput(ctx))) { await osInput(ctx, { action: 'key', keys }); return; }
   await content(ctx.tabId, loc?.frameId ?? 0, 'key', { target: loc?.target, keys });
 }
 
@@ -172,11 +181,14 @@ export async function runStep(ctx: ActContext, step: Step): Promise<StepResult> 
     }
     case 'move': {
       if (!isGecko) await cdp.mouseMove(ctx.tabId, step.x, step.y);
-      else if (S.osInput && step.trusted !== false) await osInput(ctx, { action: 'move', x: step.x, y: step.y });
+      else if (step.trusted && (await canUseRealInput(ctx))) await osInput(ctx, { action: 'move', x: step.x, y: step.y });
       else await content(ctx.tabId, 0, 'hover', { target: { x: step.x, y: step.y }, x: step.x, y: step.y });
       return ok(`mouse at ${step.x},${step.y}`);
     }
     case 'scroll': {
+      // The pointer goes to what scrolls, as a person's hand on the wheel would.
+      const where = await content<{ x: number; y: number }>(ctx.tabId, 0, 'scrollPoint', hasTarget(step) && !step.ref?.includes(':') ? { target: { ref: step.ref, selector: step.selector, text: step.text } } : {}).catch(() => null);
+      if (where) await content(ctx.tabId, 0, 'cursor', { x: where.x, y: where.y }).catch(() => {});
       if (hasTarget(step)) {
         const loc = await locate(ctx, step, 'scroll', true);
         const note = await content<string>(ctx.tabId, loc.frameId, 'scroll', { target: loc.target, direction: step.direction, amount: step.amount });
@@ -215,7 +227,8 @@ export async function runStep(ctx: ActContext, step: Step): Promise<StepResult> 
       const note = await content<string>(ctx.tabId, a.frameId, 'drag', { from: a.target, to: b.target, fx: a.p.x, fy: a.p.y, tx: b.p.x, ty: b.p.y });
       return ok(`${note}: ${a.p.what} → ${b.p.what}`);
     }
-    if (isGecko) await osInput(ctx, { action: 'drag', x: a.gx, y: a.gy, x2: b.gx, y2: b.gy });
+    if (isGecko && (await canUseRealInput(ctx))) await osInput(ctx, { action: 'drag', x: a.gx, y: a.gy, x2: b.gx, y2: b.gy });
+    else if (isGecko) return ok(await content<string>(ctx.tabId, a.frameId, 'drag', { from: a.target, to: b.target, fx: a.p.x, fy: a.p.y, tx: b.p.x, ty: b.p.y }));
     else await cdp.drag(ctx.tabId, a.gx, a.gy, b.gx, b.gy);
     return ok(`dragged ${a.p.what} → ${b.p.what}`);
   }
@@ -245,7 +258,7 @@ export async function runStep(ctx: ActContext, step: Step): Promise<StepResult> 
     case 'hover': {
       await point(ctx, loc, false);
       if (!isGecko) await cdp.mouseMove(ctx.tabId, loc.gx, loc.gy);
-      else if (S.osInput && step.trusted !== false) await osInput(ctx, { action: 'move', x: loc.gx, y: loc.gy });
+      else if (step.trusted && (await canUseRealInput(ctx))) await osInput(ctx, { action: 'move', x: loc.gx, y: loc.gy });
       else await content(ctx.tabId, loc.frameId, 'hover', { target: loc.target, x: loc.p.x, y: loc.p.y });
       return ok(`hovering ${what}`);
     }
@@ -255,7 +268,7 @@ export async function runStep(ctx: ActContext, step: Step): Promise<StepResult> 
         await clickAt(ctx, loc, {});
         if (!isGecko) await cdp.type(ctx.tabId, step.value);
         else await content(ctx.tabId, loc.frameId, 'type', { target: { selector: ':focus' }, value: step.value });
-      } else await typeInto(ctx, loc, step.value, step.clear, step.trusted);
+      } else await typeInto(ctx, loc, step.value, step.clear, step.trusted, step.at);
       if (step.submit) { await pressKeys(ctx, 'Enter', loc, step.trusted); await settle(ctx); }
       return ok(`typed ${step.value.length} characters into ${what}${step.submit ? ' and pressed Enter' : ''}`);
     }

@@ -30,7 +30,9 @@ export async function scenario(t, { launch, engine }) {
     const r = await c.navigate.mutate({ url: site.url + '/' });
     assert.match(r, /loaded: Fixture home/);
     const tabs = await c.tabs.query({});
-    assert.match(tabs, /\[yours\] Fixture home/);
+    assert.match(tabs, /\[yours · sutra\] Fixture home/, 'its tabs live in the sutra group');
+    // Side by side: sutradhar's tab opened in the background, the user's tab stays in front.
+    assert.doesNotMatch(tabs, /^\d+\*\s+\[yours/m, tabs);
   });
 
   await only(t, 'snapshot shows roles, refs, frames and shadow DOM', async () => {
@@ -164,7 +166,7 @@ export async function scenario(t, { launch, engine }) {
     await c.navigate.mutate({ url: site.url + '/' });
     const before = await c.tabs.query({});
     await act([{ do: 'click', text: 'New tab' }]);
-    const after = await until(async () => { const x = await c.tabs.query({}); return /\[yours\] Opened tab/.test(x) ? x : null; }, 10000, 'popup tab');
+    const after = await until(async () => { const x = await c.tabs.query({}); return /\[yours[^\]]*\] Opened tab/.test(x) ? x : null; }, 10000, 'popup tab');
     assert.ok(after.split('\n').length > before.split('\n').length);
     const foreign = /^(\d+)\*?\s+(?![\s[])/m.exec(after);
     if (foreign) await assert.rejects(c.snapshot.query({ tab: +foreign[1] }), /user's, not yours/);
@@ -186,7 +188,12 @@ export async function scenario(t, { launch, engine }) {
     const cur = /current tab: (\d+)/.exec(await c.tabs.query({}))[1];
     await c.tab_focus.mutate({ tab: +cur });
     await act([{ do: 'click', text: 'Add one' }]);
-    const r = await c.eval_js.mutate({ code: '!!document.querySelector("sutradhar-pointer")', why: 'test' });
+    let r = await c.eval_js.mutate({ code: '!!document.querySelector("sutradhar-pointer")', why: 'test' });
+    assert.match(r, /true/);
+    // Over a modal dialog (the browser's top layer) the pointer must still be on top.
+    await act([{ do: 'click', text: 'Open modal' }, { do: 'click', text: 'Inside modal' }]);
+    assert.match(await page(), /modal clicked/);
+    r = await c.eval_js.mutate({ code: 'document.querySelector("sutradhar-pointer").matches(":popover-open")', why: 'test' });
     assert.match(r, /true/);
   });
 

@@ -22,7 +22,12 @@ test('real mouse and keyboard in Zen', { timeout: 120000, skip: !nested ? 'run t
   const c = a.client;
   await until(async () => (await c.browsers.mutate({})).includes('*'), 60000, 'zen');
   await c.navigate.mutate({ url: site.url + '/' });
+  // Real input only goes to a tab in front of a focused window: bring it forward, as a user watching would.
+  await c.tab_focus.mutate({ tab: +/current tab: (\d+)/.exec(await c.tabs.query({}))[1] });
   await new Promise((r) => setTimeout(r, 1500));
+  // A headless sway has no keyboard until one types: one real key gives the window focus, as a click would.
+  await c.os_input.mutate({ why: 'test', steps: [{ do: 'key', keys: 'Escape' }] });
+  await new Promise((r) => setTimeout(r, 500));
 
   // A synthetic click is seen as synthetic…
   let r = await c.act.mutate({ steps: [{ do: 'click', selector: '#trusted' }] });

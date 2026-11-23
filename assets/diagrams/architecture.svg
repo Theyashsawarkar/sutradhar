@@ -82,8 +82,8 @@
   <text class="s " x="62" y="437" text-anchor="start">and tab group; locks</text>
   <rect class="card " x="272" y="382" width="208" height="64" rx="12"/>
   <text class="h " x="286" y="404" text-anchor="start">Risk gates</text>
-  <text class="s " x="286" y="422" text-anchor="start">hand-off: the user does it</text>
-  <text class="s " x="286" y="437" text-anchor="start">approve: the user says yes</text>
+  <text class="s " x="286" y="422" text-anchor="start">pay, passwords, OTPs:</text>
+  <text class="s " x="286" y="437" text-anchor="start">the user does it</text>
   <rect class="card " x="496" y="382" width="208" height="64" rx="12"/>
   <text class="h " x="510" y="404" text-anchor="start">Notifications</text>
   <text class="s " x="510" y="422" text-anchor="start">sent the moment a</text>
@@ -106,13 +106,14 @@
   <text class="lbl lbl-accent" x="538" y="322" text-anchor="start">unix socket</text>
   <rect class="panel ring-yellow" x="760" y="84" width="210" height="200" rx="16"/>
   <text class="h " x="778" y="108" text-anchor="start">You</text>
-  <text class="s " x="778" y="130" text-anchor="start">Notification: “claude needs</text>
+  <text class="s " x="778" y="130" text-anchor="start">Notification: “sutradhar needs</text>
   <text class="s " x="778" y="146" text-anchor="start">you”, with Show me · Done ·</text>
-  <text class="s " x="778" y="162" text-anchor="start">I won’t (or Allow · Deny)</text>
+  <text class="s " x="778" y="162" text-anchor="start">I won’t</text>
   <text class="s " x="778" y="178" text-anchor="start"></text>
   <text class="s " x="778" y="194" text-anchor="start">In the tab: the yellow</text>
   <text class="s " x="778" y="210" text-anchor="start">Your turn card, the panel,</text>
-  <text class="s " x="778" y="226" text-anchor="start">the Stop button</text>
+  <text class="s " x="778" y="226" text-anchor="start">the Stop button; the page</text>
+  <text class="s " x="778" y="242" text-anchor="start">shows sutradhar, not the agent</text>
   <rect class="panel " x="760" y="340" width="210" height="96" rx="16"/>
   <text class="h " x="778" y="364" text-anchor="start">sway (Wayland)</text>
   <text class="s " x="778" y="384" text-anchor="start">virtual pointer device</text>

@@ -76,7 +76,7 @@
   <path class="edge yellow " d="M619.3333333333333 260 L380.66666666666663 260" marker-end="url(#ay)"/>
   <text class="lbl lbl-yellow" x="499.99999999999994" y="252" text-anchor="middle" font-weight="650">hub.gate (the step is NOT run)</text>
   <path class="edge yellow " d="M380.66666666666663 300 L866.0 300" marker-end="url(#ay)"/>
-  <text class="lbl lbl-yellow" x="623.3333333333333" y="292" text-anchor="middle" font-weight="650">notification at once: “claude needs you”</text>
+  <text class="lbl lbl-yellow" x="623.3333333333333" y="292" text-anchor="middle" font-weight="650">notification at once: “sutradhar needs you”</text>
   <text class="lbl" x="623.3333333333333" y="315" text-anchor="middle">Show me · Done · I won’t</text>
   <path class="edge yellow " d="M380.66666666666663 354 L619.3333333333333 354" marker-end="url(#ay)"/>
   <text class="lbl lbl-yellow" x="499.99999999999994" y="346" text-anchor="middle" font-weight="650">show the Your turn card, bring the tab forward</text>
@@ -91,5 +91,5 @@
   <rect class="card " x="60.0" y="542" width="880.0" height="28" rx="10"/>
   <text class="t " x="500.0" y="561" text-anchor="middle">No answer: a reminder at 5 minutes, “timeout” at 15 · I won’t: “declined”, the agent stops and asks</text>
   <rect class="card " x="60.0" y="582" width="880.0" height="28" rx="10"/>
-  <text class="t " x="500.0" y="601" text-anchor="middle">Send · publish · delete: the same path, but Allow lets the agent click it itself</text>
+  <text class="t " x="500.0" y="601" text-anchor="middle">Everything else goes ahead without asking (approvals can be turned on in settings)</text>
 </svg>

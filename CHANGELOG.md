@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.1.7 (2026-11-23)
+
+- **The sutra tab group:** sutradhar works only in its own tab group, "sutra",
+  in the background (Chrome, Firefox, Zen). Popups from its tabs join it.
+  It never switches your tab or window; a popup that grabs the front gives
+  it back to your tab.
+- **Real input never lands in the wrong window:** the real mouse and keyboard
+  are used only when sutradhar's tab is in front of a focused window, and the
+  daemon checks the browser really has focus before typing. (Before, keys
+  meant for the browser could reach the focused terminal.)
+- **Hand-offs don't take your screen:** the notification goes out; "Show me"
+  brings the tab forward.
+- **The pointer is above modal dialogs** (it's in the browser's top layer, as
+  a popover), has a "sutradhar" name tag, and scrolling is smooth with the
+  pointer over what scrolls.
+- Chrome renders background tabs for screenshots (focus emulation).
+- `type` takes `at: "start"` to type before what's already in a field.
+
 ## 0.1.6 (2026-11-23)
 
 - **Only risky steps wait for you.** Payments, passwords, OTPs and CAPTCHAs

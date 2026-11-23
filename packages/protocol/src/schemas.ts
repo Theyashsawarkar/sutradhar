@@ -30,6 +30,7 @@ export const Step = z.discriminatedUnion('do', [
   z.object({ do: z.literal('type'), ...Target.shape, ...Common,
     value: z.string().describe('Text to type'),
     clear: z.boolean().optional().describe('Empty the field first'),
+    at: z.enum(['start', 'end']).optional().describe('Where to type: the end (default) or the start of what is there'),
     submit: z.boolean().optional().describe('Press Enter afterwards') }),
   z.object({ do: z.literal('press'), ...Target.shape, ...Common,
     keys: z.string().describe('A key or chord: "Enter", "Control+a", "Shift+Tab", "ArrowDown"') }),

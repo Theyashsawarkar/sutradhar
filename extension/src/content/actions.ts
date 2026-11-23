@@ -161,6 +161,16 @@ function focusable(el: Element): HTMLElement | null {
 }
 
 // ------------------------------------------------------------------ typing
+export function focusStart(el: Element) {
+  const h = el as HTMLInputElement;
+  h.focus({ preventScroll: true } as FocusOptions);
+  if (el.localName === 'input' || el.localName === 'textarea') { try { h.setSelectionRange(0, 0); } catch { /* */ } }
+  else if (h.isContentEditable) {
+    const sel = getSelection(); const range = document.createRange();
+    range.selectNodeContents(el); range.collapse(true); sel?.removeAllRanges(); sel?.addRange(range);
+  }
+}
+
 export function focusEnd(el: Element) {
   const h = el as HTMLInputElement;
   h.focus({ preventScroll: true } as FocusOptions);
@@ -193,8 +203,8 @@ export function synthClear(el: Element) {
   el.dispatchEvent(new W.Event('change', pageObj({ bubbles: true })));
 }
 
-export async function synthType(el: Element, text: string, delay = 0) {
-  focusEnd(el);
+export async function synthType(el: Element, text: string, delay = 0, at: 'start' | 'end' = 'end') {
+  if (at === 'start') focusStart(el); else focusEnd(el);
   for (const ch of text) {
     if (ch === '\n') { synthKey(el, 'Enter'); continue; }
     key(el, 'keydown', ch); key(el, 'keypress', ch);
@@ -290,16 +300,28 @@ function pageScroller(): Element {
   return best;
 }
 
-export function scroll(el: Element | undefined, direction?: string, amount?: number | 'page' | 'end') {
+/** Where the pointer should sit while scrolling: over the thing that scrolls. */
+export function scrollPoint(el: Element | undefined) {
+  const s = el ? scrollableOf(el) : pageScroller();
+  const r = s === document.scrollingElement || s === document.documentElement ? { left: 0, top: 0, width: innerWidth, height: innerHeight } : s.getBoundingClientRect();
+  return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + Math.min(r.height, innerHeight) / 2) };
+}
+
+export async function scroll(el: Element | undefined, direction?: string, amount?: number | 'page' | 'end') {
   const scroller = el ? scrollableOf(el) : pageScroller();
-  if (el && !direction) { el.scrollIntoView({ block: 'center', behavior: 'instant' as ScrollBehavior }); return 'scrolled into view'; }
+  // Smooth like a wheel where the user can see it; instant in a hidden tab.
+  const behavior = (document.hidden ? 'instant' : 'smooth') as ScrollBehavior;
+  const settle = () => new Promise<void>((r) => { if (behavior !== 'smooth') return r(); let done = false; const end = () => { if (!done) { done = true; r(); } }; scroller.addEventListener('scrollend', end, { once: true }); (scroller === document.scrollingElement ? window : scroller).addEventListener('scrollend', end, { once: true }); setTimeout(end, 900); });
+  if (el && !direction) { el.scrollIntoView({ block: 'center', behavior }); await settle(); return 'scrolled into view'; }
   const dir = direction ?? 'down';
   const page = dir === 'left' || dir === 'right' ? (scroller.clientWidth || innerWidth) : (scroller.clientHeight || innerHeight);
   let px = amount === 'page' || amount === undefined ? page * 0.85 : amount === 'end' ? 1e9 : amount;
   if (dir === 'up' || dir === 'left') px = -px;
   const before = [scroller.scrollLeft, scroller.scrollTop];
-  if (dir === 'left' || dir === 'right') scroller.scrollBy({ left: px, behavior: 'instant' as ScrollBehavior });
-  else scroller.scrollBy({ top: px, behavior: 'instant' as ScrollBehavior });
+  if (amount === 'end') px = (dir === 'up' || dir === 'left' ? -1 : 1) * (dir === 'left' || dir === 'right' ? scroller.scrollWidth : scroller.scrollHeight);
+  if (dir === 'left' || dir === 'right') scroller.scrollBy({ left: px, behavior });
+  else scroller.scrollBy({ top: px, behavior });
+  await settle();
   const moved = scroller.scrollLeft !== before[0] || scroller.scrollTop !== before[1];
   return moved ? `scrolled to ${Math.round(scroller.scrollTop)}/${scroller.scrollHeight - scroller.clientHeight}` : 'already at the end';
 }

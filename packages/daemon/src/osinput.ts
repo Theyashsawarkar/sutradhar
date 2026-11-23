@@ -74,6 +74,14 @@ export async function browserDialogFocused(kind: string): Promise<Node | null> {
   return isPortal || ownTitle ? f : null;
 }
 
+export async function isFocused(w: Node): Promise<boolean> {
+  const tree = JSON.parse(await sway('-t', 'get_tree')) as Node;
+  let ok = false;
+  const walk = (n: Node) => { if (n.id === w.id && n.focused) ok = true; for (const c of [...(n.nodes ?? []), ...(n.floating_nodes ?? [])]) walk(c); };
+  walk(tree);
+  return ok;
+}
+
 export async function focusWindow(kind: string, title: string) {
   const w = await findWindow(kind, title);
   if (!w.focused) await sway(`[con_id=${w.id}] focus`);
