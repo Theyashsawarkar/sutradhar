@@ -97,7 +97,8 @@ with zipfile.ZipFile(dst, 'w', zipfile.ZIP_DEFLATED) as z:
 `, join(dist, 'firefox'), join(dist, 'sutradhar-firefox.xpi')]);
 
 // The update manifest Firefox/Zen read (committed at the repo root; points at the release's .xpi).
-writeFileSync(join(root, 'updates.json'), JSON.stringify({ addons: { 'sutradhar@theyashsawarkar.github.io': { updates: [
+// Only for a release (`pnpm release-manifest`): an ordinary build, like kosha's, leaves the checkout clean.
+if (process.argv.includes('--release')) writeFileSync(join(root, 'updates.json'), JSON.stringify({ addons: { 'sutradhar@theyashsawarkar.github.io': { updates: [
   { version, update_link: `https://github.com/Theyashsawarkar/sutradhar/releases/download/v${version}/sutradhar-firefox.xpi` },
 ] } } }, null, 2) + '\n');
 

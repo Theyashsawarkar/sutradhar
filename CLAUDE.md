@@ -31,6 +31,8 @@ command; docs/adr holds the decisions.
   `python3 scripts/build-site.py` and commit docs/.
 - Every change gets a CHANGELOG.md entry; releases are tags `vX.Y.Z` with
   `version` in package.json bumped to match (it flows into both manifests and
-  the CLI).
+  the CLI). After bumping, run `pnpm release-manifest` so `updates.json`
+  (what Firefox/Zen check for self-updates) names the new version, and commit
+  it with the release.
 - Keys: the extension's "Stop every agent" command has no default key (the
   global one is Super+Shift+Delete in Vayu's sway config, annotated there).

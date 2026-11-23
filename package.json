@@ -2,13 +2,14 @@
   "name": "sutradhar-workspace",
   "private": true,
   "type": "module",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "scripts": {
     "build": "node scripts/build.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "e2e": "node --test tests/e2e/*.test.mjs",
-    "check": "pnpm typecheck && pnpm test && pnpm build"
+    "check": "pnpm typecheck && pnpm test && pnpm build",
+    "release-manifest": "node scripts/build.mjs --release"
   },
   "engines": {
     "node": ">=22.18"

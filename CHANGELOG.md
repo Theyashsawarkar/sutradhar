@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.10 (2026-11-23)
+
+- `updates.json` (Firefox/Zen self-updates) is written only by `pnpm
+  release-manifest`. Before, every build rewrote it, so kosha's installed copy
+  looked modified (and refused to update) and the published file lagged a
+  version behind.
+
 ## 0.1.9 (2026-11-23)
 
 - **A better pointer.** It takes the shape your own pointer would (a hand over
