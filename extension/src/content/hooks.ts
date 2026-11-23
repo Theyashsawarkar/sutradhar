@@ -13,7 +13,21 @@ export const state = {
   dialogs: [] as DialogRecord[],
   console: [] as ConsoleRecord[],
   onDialog: (_d: DialogRecord) => {},
+  /** Files an upload step is waiting to hand to the page's next file picker. */
+  pendingFiles: null as { name: string; mime: string; b64: string }[] | null,
+  filesTaken: false,
+  /** Set by actions.ts: put the pending files on this file input. */
+  giveFiles: (_input: Element) => {},
 };
+
+/** A page asked for a file picker: if an upload is armed, answer it with the files instead. */
+export function takeFilePick(input: Element): boolean {
+  if (!state.pendingFiles) return false;
+  state.giveFiles(input);
+  state.pendingFiles = null;
+  state.filesTaken = true;
+  return true;
+}
 
 export function answerDialog(kind: string, message: string, def?: string): { handled: boolean; value?: unknown } {
   if (!state.agent) return { handled: false };
@@ -48,6 +62,12 @@ export function listenToMainWorld() {
     let q: any;
     try { q = JSON.parse((e as CustomEvent).detail); } catch { return; }
     if (q.type === 'console') { recordConsole(q.level, q.text); return; }
+    if (q.type === 'filepick') {
+      const files = state.pendingFiles;
+      if (files) { state.pendingFiles = null; state.filesTaken = true; }
+      document.dispatchEvent(new CustomEvent('__sutradhar_a', { detail: JSON.stringify({ files }) }));
+      return;
+    }
     if (q.type === 'dialog') {
       const a = answerDialog(q.kind, q.message, q.def);
       document.dispatchEvent(new CustomEvent('__sutradhar_a', { detail: JSON.stringify(a) }));
@@ -67,6 +87,17 @@ export function hookFirefoxPage() {
       if (!a.handled) return original.call(w, message, def);
       return a.value;
     }, w, { defineAs: kind });
+  }
+  // A page's "add photo" button calls input.click() (or showPicker()) on a file input:
+  // while an upload is armed, give it the files and open no picker.
+  const proto = w.HTMLInputElement.prototype;
+  for (const name of ['click', 'showPicker']) {
+    const original = proto[name];
+    if (typeof original !== 'function') continue;
+    exportFunction(function (this: any) {
+      if (this && this.type === 'file' && takeFilePick(this)) return undefined;
+      return original.call(this);
+    }, proto, { defineAs: name });
   }
   const c = w.console;
   for (const level of ['log', 'info', 'warn', 'error', 'debug']) {

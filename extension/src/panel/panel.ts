@@ -31,7 +31,7 @@ async function refresh() {
   gates.innerHTML = '';
   for (const g of st.gates ?? []) {
     const card = el('div', { class: 'card' });
-    card.append(el('h3', {}, g.kind === 'handoff' ? `Your turn: ${g.session.replace(/#\d+$/, '')} is waiting` : `${g.session.replace(/#\d+$/, '')} asks to go ahead`));
+    card.append(el('h3', {}, g.kind === 'handoff' ? 'Your turn: sutradhar is waiting' : 'sutradhar asks to go ahead'));
     card.append(el('p', {}, g.title));
     if (g.what) card.append(el('p', { class: 'what' }, g.what));
     if (g.why) card.append(el('p', { class: 'muted' }, g.why));
@@ -50,24 +50,28 @@ async function refresh() {
   const ul = $('sessions');
   ul.innerHTML = '';
   const sessions = st.sessions ?? [];
-  if (!sessions.length) ul.append(el('li', { class: 'muted' }, 'none'));
-  for (const s of sessions) {
-    const li = el('li');
-    li.append(el('span', { class: s.stopped ? 'bad' : 'ok' }, s.stopped ? '■ ' : '● '), document.createTextNode(`${s.name} · ${s.tabs.length} tab(s)${s.stopped ? ' · stopped' : ''}`));
-    ul.append(li);
-  }
+  // Never which agent: only that sutradhar is at work, and where.
+  const working = sessions.filter((s: any) => !s.stopped);
+  const stopped = sessions.length - working.length;
+  const tabs = working.reduce((n: number, s: any) => n + s.tabs.length, 0);
+  const li = el('li');
+  if (!sessions.length) li.append(el('span', { class: 'muted' }, 'idle'));
+  else li.append(el('span', { class: stopped && !working.length ? 'bad' : 'ok' }, stopped && !working.length ? '■ ' : '● '),
+    document.createTextNode(working.length ? `sutradhar is working in ${tabs} tab(s)` : 'stopped'));
+  ul.append(li);
   ($('resume') as HTMLButtonElement).hidden = !sessions.some((s: any) => s.stopped);
 
   const log = $('log');
   log.innerHTML = '';
   for (const e of (st.log ?? []).slice(-12).reverse()) {
-    const text = `${(e.time ?? '').slice(11, 19)} ${(e.session ?? e.browser ?? '').replace(/#\d+$/, '')} ${e.tool ?? e.gate ?? e.event ?? ''} ${e.url ?? e.steps ?? e.title ?? ''}${e.outcome ? ' → ' + e.outcome : ''}`;
+    const text = `${(e.time ?? '').slice(11, 19)} ${e.tool ?? e.gate ?? e.event ?? ''} ${e.url ?? e.steps ?? e.title ?? ''}${e.outcome ? ' → ' + e.outcome : ''}`;
     log.append(el('li', { class: e.ok === false ? 'fail' : '' }, e.ok === false ? `${text} — ${e.error}` : text));
   }
 
   const rules = st.config?.sites?.[host] ?? {};
-  ($('approve') as HTMLInputElement).checked = rules.approve === 'allow';
-  ($('eval') as HTMLInputElement).checked = rules.eval === 'allow';
+  // Ticked = ask here (the default is go ahead; only risky steps always wait for you).
+  ($('approve') as HTMLInputElement).checked = rules.approve === 'ask';
+  ($('eval') as HTMLInputElement).checked = rules.eval === 'ask';
 }
 
 async function init() {
@@ -78,7 +82,7 @@ async function init() {
     const box = $(id) as HTMLInputElement;
     box.disabled = !host;
     box.addEventListener('change', async () => {
-      await ask({ type: 'policy-set', patch: { site: host, rule: { [id]: box.checked ? 'allow' : 'ask' } } });
+      await ask({ type: 'policy-set', patch: { site: host, rule: { [id]: box.checked ? 'ask' : 'allow' } } });
       refresh();
     });
   }

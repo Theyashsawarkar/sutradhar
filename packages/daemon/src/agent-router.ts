@@ -9,7 +9,7 @@ import { promisify } from 'node:util';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { Step } from '../../protocol/src/schemas.ts';
-import { siteRule } from './config.ts';
+import { needsApproval } from './config.ts';
 import { openGate } from './gates.ts';
 import { MIME, osAct } from './hub-router.ts';
 import { paths } from './paths.ts';
@@ -86,8 +86,11 @@ async function call<T>(s: Session, tool: string, detail: Record<string, unknown>
   } finally { s.calls.delete(ac); }
 }
 
-async function approve(s: Session, b: BrowserConn, tab: number, title: string, what: string, why?: string) {
+async function approve(s: Session, b: BrowserConn, tab: number, title: string, what: string, why?: string, kind: 'approve' | 'eval' | 'cookies' = 'approve') {
   const info = await b.client.tabs.get.query({ tab }).catch(() => ({ url: '' }));
+  const rule = needsApproval(info.url, kind);
+  if (rule === 'allow') return;
+  if (rule === 'deny') throw new TRPCError({ code: 'FORBIDDEN', message: 'the user turned this off for this site' });
   const o = await openGate({ kind: 'approve', session: s.id, browserId: b.id, tab, url: info.url, title, what, why });
   if (o !== 'approved') throw new TRPCError({ code: 'FORBIDDEN', message: o === 'timeout' ? 'the user did not answer in time' : o === 'stopped' ? 'the user pressed Stop' : 'the user said no' });
 }
@@ -251,9 +254,7 @@ Payments, card/bank details, passwords, OTPs, CAPTCHAs and buy/pay/transfer/dele
     .mutation(async ({ ctx, input }) => {
       const s = sessionFor(ctx); const { b, tab } = await tabFor(s, input.tab);
       const info = await b.client.tabs.get.query({ tab });
-      const rule = siteRule(info.url, 'eval', 'ask');
-      if (rule === 'deny') throw new TRPCError({ code: 'FORBIDDEN', message: 'JavaScript is denied on this site by the user' });
-      if (rule === 'ask') await approve(s, b, tab, 'Run JavaScript in this page', input.code.slice(0, 300), input.why);
+      await approve(s, b, tab, 'Run JavaScript in this page', input.code.slice(0, 300), input.why, 'eval');
       const r = await call(s, 'eval_js', { tab, code: input.code.slice(0, 200) }, () => b.client.page.eval.mutate({ tab, code: input.code }));
       return JSON.stringify(r.value, null, 2) ?? 'undefined';
     }),
@@ -373,9 +374,7 @@ Payments, card/bank details, passwords, OTPs, CAPTCHAs and buy/pay/transfer/dele
   cookies: agentProc.meta({ description: "Read a site's cookies (asks the user first unless allowed for the site).", untrusted: true })
     .input(z.object({ url: z.string(), why: z.string() })).mutation(async ({ ctx, input }) => {
       const s = sessionFor(ctx); const b = browserFor(s); const { tab } = await tabFor(s);
-      const rule = siteRule(input.url, 'cookies', 'ask');
-      if (rule === 'deny') throw new TRPCError({ code: 'FORBIDDEN', message: 'cookies are denied for this site' });
-      if (rule === 'ask') await approve(s, b, tab, `Read cookies of ${input.url}`, '', input.why);
+      await approve(s, b, tab, `Read cookies of ${input.url}`, '', input.why, 'cookies');
       return JSON.stringify(await b.client.data.cookies.query({ url: input.url }), null, 1);
     }),
 

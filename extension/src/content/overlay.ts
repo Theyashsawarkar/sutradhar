@@ -36,6 +36,13 @@ button { all: unset; cursor: pointer; border-radius: 999px; padding: 6px 14px; f
 .no { background: #313244; color: #cdd6f4; }
 .stop { background: #f38ba8; color: #1e1e2e; }
 button:focus-visible { outline: 2px solid var(--c); outline-offset: 2px; }
+.cursor { position: fixed; left: 0; top: 0; z-index: 2147483647; pointer-events: none; width: 26px; height: 30px;
+  transition: transform .42s cubic-bezier(.3,.7,.2,1), opacity .3s; filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
+.ripple { position: fixed; z-index: 2147483646; pointer-events: none; width: 34px; height: 34px; margin: -17px 0 0 -17px;
+  border-radius: 50%; border: 2px solid #cba6f7; background: rgba(203,166,247,.22); animation: ripple .5s ease-out forwards; }
+@keyframes ripple { from { transform: scale(.3); opacity: 1; } to { transform: scale(1.4); opacity: 0; } }
+.focusring { position: fixed; z-index: 2147483645; pointer-events: none; border-radius: 8px;
+  box-shadow: 0 0 0 2px #cba6f7, 0 0 14px rgba(203,166,247,.45); transition: all .25s; }
 .brand { font-size: 11px; color: #7f849c; margin-top: 8px; }
 `;
 
@@ -57,7 +64,7 @@ function button(label: string, cls: string, onClick: () => void) {
 
 export function setOverlay(s: OverlayState) {
   if (window.top !== window) return;
-  if ('session' in s) s = { ...s, session: s.session.replace(/#\d+$/, '') };
+
   if (s.mode === 'idle') { host?.remove(); host = null; root = null; return; }
   const r = ensure();
   r.innerHTML = '';
@@ -75,28 +82,96 @@ export function setOverlay(s: OverlayState) {
     const pill = document.createElement('div');
     pill.className = 'pill';
     const dot = document.createElement('span'); dot.className = 'dot';
-    const label = document.createElement('span'); label.textContent = `${s.session} is ${s.label ?? 'acting'}`;
+    // The user sees sutradhar at work, never which agent is behind it.
+    const label = document.createElement('span'); label.textContent = 'sutradhar is working here';
     pill.append(dot, label, button('Stop', 'stop', () => ext.runtime.sendMessage({ type: 'stop' })));
     wrap.appendChild(pill);
   } else {
     const card = document.createElement('div');
     card.className = 'card';
     const h = document.createElement('h1');
-    h.textContent = s.kind === 'handoff' ? 'Your turn' : `${s.session} asks to go ahead`;
+    h.textContent = s.kind === 'handoff' ? 'Your turn' : 'sutradhar asks to go ahead';
     const p = document.createElement('p'); p.textContent = s.title;
     card.append(h, p);
     if (s.what) { const w = document.createElement('p'); w.className = 'what'; w.textContent = s.what; card.appendChild(w); }
     if (s.detail) { const d = document.createElement('p'); d.textContent = s.detail; card.appendChild(d); }
-    if (s.why) { const y = document.createElement('p'); y.className = 'why'; y.textContent = `${s.session}: ${s.why}`; card.appendChild(y); }
+    if (s.why) { const y = document.createElement('p'); y.className = 'why'; y.textContent = `Why: ${s.why}`; card.appendChild(y); }
     const row = document.createElement('div'); row.className = 'row';
     const send = (outcome: string) => ext.runtime.sendMessage({ type: 'resolve', id: s.id, outcome });
     if (s.kind === 'handoff') row.append(button("I won't", 'no', () => send('declined')), button('Done', 'go', () => send('done')));
     else row.append(button('Deny', 'no', () => send('denied')), button('Allow', 'go', () => send('approved')));
     card.appendChild(row);
     const brand = document.createElement('div'); brand.className = 'brand';
-    brand.textContent = s.kind === 'handoff' ? `sutradhar · ${s.session} is waiting for you` : 'sutradhar';
+    brand.textContent = s.kind === 'handoff' ? 'sutradhar is waiting for you' : 'sutradhar';
     card.appendChild(brand);
     wrap.appendChild(card);
   }
   r.appendChild(wrap);
+}
+
+// ------------------------------------------------------------------ the visible pointer
+// A pointer that glides to what sutradhar is about to touch, so the user sees
+// the work happen like a person doing it. It lives beside the overlay, in the
+// same closed shadow root, and never takes clicks.
+let cursorHost: HTMLElement | null = null;
+let cursorRoot: ShadowRoot | null = null;
+let cursorEl: HTMLElement | null = null;
+let ringEl: HTMLElement | null = null;
+let pos = { x: -40, y: -40 };
+let hideTimer: ReturnType<typeof setTimeout> | undefined;
+
+const POINTER = '<svg viewBox="0 0 26 30" width="26" height="30" xmlns="http://www.w3.org/2000/svg"><path d="M3 2 L3 24 L9 18.5 L13.5 28 L18 26 L13.6 16.8 L21.5 16.8 Z" fill="#cba6f7" stroke="#1e1e2e" stroke-width="2" stroke-linejoin="round"/></svg>';
+
+function ensureCursor() {
+  if (cursorRoot && cursorHost?.isConnected) return cursorRoot;
+  cursorHost = document.createElement('sutradhar-pointer');
+  cursorRoot = cursorHost.attachShadow({ mode: 'closed' });
+  const style = document.createElement('style');
+  style.textContent = CSS;
+  cursorEl = document.createElement('div');
+  cursorEl.className = 'cursor';
+  cursorEl.innerHTML = POINTER;
+  cursorEl.style.transform = `translate(${pos.x}px, ${pos.y}px)`;
+  ringEl = document.createElement('div');
+  ringEl.className = 'focusring';
+  ringEl.style.opacity = '0';
+  cursorRoot.append(style, ringEl, cursorEl);
+  (document.documentElement ?? document.body).appendChild(cursorHost);
+  return cursorRoot;
+}
+
+/** Glides the pointer to (x, y) in viewport pixels; resolves when it arrives. */
+export async function moveCursor(x: number, y: number, opts: { click?: boolean; rect?: { x: number; y: number; width: number; height: number } } = {}) {
+  if (window.top !== window || document.hidden) return;
+  const root = ensureCursor();
+  clearTimeout(hideTimer);
+  cursorEl!.style.opacity = '1';
+  const far = Math.hypot(x - pos.x, y - pos.y);
+  const ms = pos.x < 0 ? 0 : Math.min(520, 160 + far * 0.45);
+  cursorEl!.style.transition = `transform ${ms}ms cubic-bezier(.3,.7,.2,1), opacity .3s`;
+  // The arrow's tip is at (3, 2) in its box.
+  cursorEl!.style.transform = `translate(${x - 3}px, ${y - 2}px)`;
+  pos = { x, y };
+  if (opts.rect) {
+    Object.assign(ringEl!.style, { left: `${opts.rect.x - 3}px`, top: `${opts.rect.y - 3}px`, width: `${opts.rect.width + 6}px`, height: `${opts.rect.height + 6}px`, opacity: '1' });
+  } else ringEl!.style.opacity = '0';
+  await new Promise((r) => setTimeout(r, ms + 40));
+  if (opts.click) {
+    const ripple = document.createElement('div');
+    ripple.className = 'ripple';
+    ripple.style.left = `${x}px`;
+    ripple.style.top = `${y}px`;
+    root.appendChild(ripple);
+    setTimeout(() => ripple.remove(), 600);
+  }
+}
+
+/** Fades the pointer out a little after the work stops. */
+export function restCursor(delay = 1800) {
+  clearTimeout(hideTimer);
+  hideTimer = setTimeout(() => {
+    if (cursorEl) cursorEl.style.opacity = '0';
+    if (ringEl) ringEl.style.opacity = '0';
+    pos = { x: -40, y: -40 };
+  }, delay);
 }

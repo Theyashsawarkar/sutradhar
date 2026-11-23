@@ -20,5 +20,10 @@ describe('config and site rules', () => {
     expect(c.siteRule('https://mail.example.com/', 'approve', 'ask')).toBe('deny');
     expect(c.siteRule('https://notexample.com/', 'approve', 'ask')).toBe('ask');
     expect(c.riskConfig().handoffHosts).toContain('razorpay.com');
+    // Approvals are off unless the user turns them on (a site rule can still ask).
+    expect(c.needsApproval('https://other.example/', 'approve')).toBe('allow');
+    expect(c.needsApproval('https://mail.example.com/', 'approve')).toBe('deny');
+    again.approve.enabled = true;
+    expect(c.needsApproval('https://other.example/', 'approve')).toBe('ask');
   });
 });

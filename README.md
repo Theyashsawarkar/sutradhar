@@ -191,11 +191,11 @@ The page itself checks every step, whatever the agent asked for. These are
 
 What happens:
 
-1. **A notification goes out the moment the wait starts:** "claude needs you:
-   Complete the payment yourself on example.com", with **Show me**, **Done**
-   and **I won't**.
+1. **A notification goes out the moment the wait starts:** "sutradhar needs
+   you: Complete the payment yourself on example.com", with **Show me**,
+   **Done** and **I won't**.
 2. The tab comes to the front with a **yellow border** and a **Your turn** card
-   on the page, saying what to do and why the agent wanted it.
+   on the page, saying what to do and why.
 3. You do it in the page, then press **Done** (on the card, in the toolbar
    panel or in the notification). The agent gets `handoff-done` and carries on;
    **I won't** tells it to stop and ask you.
@@ -204,13 +204,27 @@ What happens:
 Agents can also hand you a step themselves with the `handoff` tool (log in,
 solve a CAPTCHA, approve a 2FA prompt).
 
-**Send, publish, post, delete, merge, accept, book** and similar buttons are a
-lighter case: you press **Allow** and the agent clicks it. So are `eval_js`,
-reading cookies or the clipboard, `tab_attach` and `os_input`. A site you
-trust can skip the question (toolbar panel, or [settings](#settings)).
+**Everything else goes ahead without asking**: send, publish, delete, running
+JavaScript, the real mouse and keyboard. Only the steps above wait for you.
+If you'd rather approve those too, turn on `[approve] enabled` in
+[settings](#settings), or tick "Ask before…" for one site in the toolbar
+panel; then you press **Allow** and the agent clicks.
 
 The card's buttons live in a closed shadow root and only answer real clicks,
 so a page can't press **Done** or **Allow** for you.
+
+### What you see while it works
+
+- **"sutradhar is working here"** in a pill at the bottom of the page, with a
+  **Stop** button, and an accent border around the tab. You see sutradhar,
+  never which agent is behind it: not on the page, not in notifications, not
+  in the panel (the log on disk keeps the names, for you).
+- **A pointer that moves like a person's**: it glides to each element, a
+  ripple shows each click, a ring marks the field, and typing goes at a pace
+  you can follow (at most about 4 seconds for any text). In a tab you aren't
+  looking at, sutradhar works at full speed with no pointer.
+- **No file picker pops up**: when a page's "add photo" button would open
+  one, sutradhar hands the page the files directly.
 
 ## Tools
 
@@ -274,6 +288,7 @@ reminder_minutes = 5
 extra_hosts = ["pay.mybank.example"]   # more payment/bank hosts: every action there is yours
 
 [approve]
+enabled = false      # true: also ask before send/publish/delete, eval_js, cookies, clipboard reads, tab_attach, os_input
 timeout_minutes = 5
 
 [os_input]
@@ -284,12 +299,12 @@ auto_retry = true    # repeat a click the page ignored with the real mouse
 enabled = true
 
 [sites."github.com"]
-approve = "allow"    # send/publish/delete without asking here ("ask", "deny")
+approve = "ask"      # ask before send/publish/delete here ("allow", "deny")
 eval = "ask"
 cookies = "deny"
 ```
 
-The toolbar panel edits the `approve` and `eval` rules for the site you're on.
+The toolbar panel's "Ask before…" boxes set the `approve` and `eval` rules for the site you're on.
 
 | Environment | |
 |---|---|

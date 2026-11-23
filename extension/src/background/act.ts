@@ -72,8 +72,24 @@ async function osInput(ctx: ActContext, action: object) {
   return hub().osInput.mutate({ tab: ctx.tabId, ...action } as never);
 }
 
+/** Shows the visible pointer gliding to the element (and a ripple if it clicks). */
+async function point(ctx: ActContext, loc: Located, click: boolean) {
+  if (Number.isNaN(loc.gx)) return;
+  const dx = loc.gx - loc.p.x, dy = loc.gy - loc.p.y;
+  const r = loc.p.rect;
+  await content(ctx.tabId, 0, 'cursor', { x: loc.gx, y: loc.gy, click, rect: { x: r.x + dx, y: r.y + dy, width: r.width, height: r.height } }).catch(() => {});
+}
+
+/** Typing speed a person can follow in a visible tab (about 4 s at most); full speed in a hidden one. */
+async function typingDelay(ctx: ActContext, length: number) {
+  const tab = await ext.tabs.get(ctx.tabId).catch(() => null);
+  if (!tab?.active) return 0;
+  return Math.max(3, Math.min(28, Math.floor(4000 / Math.max(1, length))));
+}
+
 async function clickAt(ctx: ActContext, loc: Located, step: { button?: 'left' | 'right' | 'middle'; count?: number; modifiers?: string[]; trusted?: boolean }) {
   const button = step.button ?? 'left', count = step.count ?? 1, mods = step.modifiers ?? [];
+  await point(ctx, loc, true);
   if (!isGecko && !Number.isNaN(loc.gx)) { await cdp.click(ctx.tabId, loc.gx, loc.gy, button, count, mods); return ''; }
   // Firefox's popup blocker drops synthetic clicks on new-tab links: open it as the click would.
   if (isGecko && loc.p.href && button === 'left' && (loc.p.newTab || mods.includes('Control')) && !step.trusted) {
@@ -97,10 +113,12 @@ async function clickAt(ctx: ActContext, loc: Located, step: { button?: 'left' | 
 }
 
 async function typeInto(ctx: ActContext, loc: Located, value: string, clear?: boolean, trusted?: boolean) {
+  await point(ctx, loc, true);
+  const delay = await typingDelay(ctx, value.length);
   if (!isGecko) {
     await content(ctx.tabId, loc.frameId, clear ? 'selectAll' : 'focusEnd', { target: loc.target });
     if (clear) await cdp.press(ctx.tabId, 'Backspace');
-    await cdp.type(ctx.tabId, value);
+    await cdp.type(ctx.tabId, value, delay);
     return;
   }
   if (trusted && S.osInput) {
@@ -110,7 +128,7 @@ async function typeInto(ctx: ActContext, loc: Located, value: string, clear?: bo
     await osInput(ctx, { action: 'type', text: value });
     return;
   }
-  await content(ctx.tabId, loc.frameId, 'type', { target: loc.target, value, clear });
+  await content(ctx.tabId, loc.frameId, 'type', { target: loc.target, value, clear, delay });
 }
 
 async function pressKeys(ctx: ActContext, keys: string, loc?: Located, trusted?: boolean) {
@@ -190,6 +208,8 @@ export async function runStep(ctx: ActContext, step: Step): Promise<StepResult> 
     const a = await locate(ctx, step.from, 'drag', step.force);
     const b = await locate(ctx, step.to, 'drag', true);
     const g = await gate(ctx, step, a); if (g) return g;
+    await point(ctx, a, false);
+    void point(ctx, b, false);
     if (a.p.draggable || a.frameId !== b.frameId || isGecko && !step.trusted) {
       if (a.frameId !== b.frameId) throw new Error('drag between frames is not supported');
       const note = await content<string>(ctx.tabId, a.frameId, 'drag', { from: a.target, to: b.target, fx: a.p.x, fy: a.p.y, tx: b.p.x, ty: b.p.y });
@@ -223,6 +243,7 @@ export async function runStep(ctx: ActContext, step: Step): Promise<StepResult> 
       return ok(`${step.count === 2 ? 'double-' : ''}${step.button && step.button !== 'left' ? step.button + '-' : ''}clicked ${what}${extra}`);
     }
     case 'hover': {
+      await point(ctx, loc, false);
       if (!isGecko) await cdp.mouseMove(ctx.tabId, loc.gx, loc.gy);
       else if (S.osInput && step.trusted !== false) await osInput(ctx, { action: 'move', x: loc.gx, y: loc.gy });
       else await content(ctx.tabId, loc.frameId, 'hover', { target: loc.target, x: loc.p.x, y: loc.p.y });
@@ -275,6 +296,21 @@ export async function runStep(ctx: ActContext, step: Step): Promise<StepResult> 
     }
     case 'upload': {
       const files = await readFiles(step.paths);
+      const direct = await content<boolean>(ctx.tabId, loc.frameId, 'hasFileInput', { target: loc.target });
+      if (!direct) {
+        // A button that opens the file picker: arm the page so the picker gets these files and never opens.
+        await content(ctx.tabId, loc.frameId, 'armFiles', { files });
+        await clickAt(ctx, loc, { trusted: step.trusted });
+        for (let i = 0; i < 30; i++) {
+          if (await content<boolean>(ctx.tabId, loc.frameId, 'filesTaken')) {
+            await settle(ctx);
+            return ok(`${files.length} file(s) given to the page through ${what} (no file picker opened)`);
+          }
+          await sleep(100);
+        }
+        await content(ctx.tabId, loc.frameId, 'armFiles', { files: null });
+      }
+      await point(ctx, loc, true);
       const note = await content<string>(ctx.tabId, loc.frameId, 'upload', { target: loc.target, files });
       return ok(note);
     }

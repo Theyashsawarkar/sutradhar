@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.1.6 (2026-11-23)
+
+- **Only risky steps wait for you.** Payments, passwords, OTPs and CAPTCHAs
+  are still always yours; everything else (send, publish, delete, eval_js,
+  cookies, clipboard reads, tab_attach, os_input) goes ahead without asking.
+  `[approve] enabled = true`, or "Ask before…" for a site in the panel,
+  brings the Allow step back.
+- **You see sutradhar, never the agent:** the page says "sutradhar is working
+  here", notifications say "sutradhar needs you", the panel shows what
+  sutradhar is doing, not who asked.
+- **A visible pointer:** it glides to each element, ripples on each click,
+  rings the field it types in, and typing runs at a pace you can follow (at
+  most about 4 s). Hidden tabs run at full speed without it.
+- **File pickers never open:** when a page's button would open one (LinkedIn's
+  "add media"), the upload step hands the page the files directly
+  (`input.click()` / `showPicker()` are answered while an upload is armed).
+
 ## 0.1.5 (2026-11-23)
 
 - Real keyboard into the browser's own dialogs: when a file picker (or print

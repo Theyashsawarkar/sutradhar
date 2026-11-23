@@ -9,8 +9,6 @@ import { notify, type Shown } from './notify.ts';
 import { focusWindow } from './osinput.ts';
 import { D, log, type Gate, type Outcome } from './state.ts';
 
-const label = (session: string) => session.replace(/#\d+$/, '');
-
 function host(url: string) { try { return new URL(url).hostname; } catch { return url; } }
 
 export async function openGate(g: Omit<Gate, 'id' | 'created' | 'resolve'>, timeoutMs?: number): Promise<Outcome> {
@@ -25,12 +23,13 @@ export async function openGate(g: Omit<Gate, 'id' | 'created' | 'resolve'>, time
   const outcome = await new Promise<Outcome>((resolve) => {
     const gate: Gate = { ...g, id, created: Date.now(), resolve };
     D.gates.set(id, gate);
-    const who = label(g.session);
+    // The user sees sutradhar, never which agent is behind it.
+    const who = 'sutradhar';
     const site = host(g.url);
     const summary = g.kind === 'handoff' ? `${who} needs you` : `${who} asks to go ahead`;
     const body = g.kind === 'handoff'
       ? `${g.title} on ${site}${g.what ? ` (${g.what})` : ''}. Do it in the browser, then press Done.`
-      : `${g.title} on ${site}${g.what ? `: ${g.what}` : ''}${g.why ? `\n${who}: ${g.why}` : ''}`;
+      : `${g.title} on ${site}${g.what ? `: ${g.what}` : ''}${g.why ? `\nWhy: ${g.why}` : ''}`;
     const actions: Record<string, string> = g.kind === 'handoff'
       ? { open: 'Show me', done: 'Done', declined: "I won't" }
       : { open: 'Show me', approved: 'Allow', denied: 'Deny' };

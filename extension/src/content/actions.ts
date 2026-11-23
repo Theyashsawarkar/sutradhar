@@ -5,6 +5,7 @@
 import { describe, hasBox, isEditable, isSecretField, isVisible, refFor, roleOf } from './dom.ts';
 import { locate } from './snapshot.ts';
 import { stepRisk, type Risk, type RiskConfig } from './risk.ts';
+import { state } from './hooks.ts';
 
 const W: any = (window as any).wrappedJSObject ?? window; // page compartment on Firefox
 const cloneInto: any = (globalThis as any).cloneInto ?? ((x: unknown) => x);
@@ -192,7 +193,7 @@ export function synthClear(el: Element) {
   el.dispatchEvent(new W.Event('change', pageObj({ bubbles: true })));
 }
 
-export async function synthType(el: Element, text: string) {
+export async function synthType(el: Element, text: string, delay = 0) {
   focusEnd(el);
   for (const ch of text) {
     if (ch === '\n') { synthKey(el, 'Enter'); continue; }
@@ -208,8 +209,8 @@ export async function synthType(el: Element, text: string) {
       el.dispatchEvent(new W.InputEvent('input', pageObj({ bubbles: true, data: ch, inputType: 'insertText' })));
     }
     key(el, 'keyup', ch);
-    // A small human pace in a visible tab; none in a hidden one, where timers are throttled to ~1/s.
-    if (text.length < 200 && !document.hidden) await sleep(2);
+    // A pace the user can follow in a visible tab; none in a hidden one, where timers are throttled to ~1/s.
+    if (delay && !document.hidden) await sleep(delay);
   }
   el.dispatchEvent(new W.Event('change', pageObj({ bubbles: true })));
 }
@@ -349,6 +350,23 @@ export async function synthDrag(from: Element, to: Element, fx: number, fy: numb
   }
   mouse(to, 'pointerup', tx, ty); mouse(to, 'mouseup', tx, ty);
   return 'dragged (mouse)';
+}
+
+/** Arms the page's next file picker with these files (see hooks.ts). */
+export function armFiles(files: { name: string; mime: string; b64: string }[] | null) {
+  state.pendingFiles = files;
+  state.filesTaken = false;
+  state.giveFiles = (input) => { upload(input, files ?? []); };
+}
+
+export function filesTaken() { return state.filesTaken; }
+
+/** A file input inside, labelled by, or under this element (pages hide them behind buttons). */
+export function fileInputFor(el: Element): HTMLInputElement | null {
+  if (el.localName === 'input' && (el as HTMLInputElement).type === 'file') return el as HTMLInputElement;
+  const inner = el.querySelector('input[type=file]') ?? (el as HTMLLabelElement).control;
+  if (inner && (inner as HTMLInputElement).type === 'file') return inner as HTMLInputElement;
+  return null;
 }
 
 export function upload(el: Element, files: { name: string; mime: string; b64: string }[]) {

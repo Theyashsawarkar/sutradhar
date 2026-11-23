@@ -57,6 +57,7 @@
   <section aria-label="Files">
     <input type="file" id="file" multiple aria-label="Attach file">
     <span id="file-result"></span>
+    <button id="photo" type="button">Attach photo</button> <span id="photo-result">no photo</span>
   </section>
 
   <section aria-label="Shadow">
@@ -89,6 +90,8 @@
   $('dropzone').addEventListener('dragover', (e) => e.preventDefault());
   $('dropzone').addEventListener('drop', (e) => { e.preventDefault(); const f = e.dataTransfer.files; $('drop-result').textContent = f.length ? 'dropped file ' + f[0].name : 'dropped ' + e.dataTransfer.getData('text/plain'); });
   $('file').onchange = async () => { const f = $('file').files[0]; $('file-result').textContent = f ? `${f.name} ${f.size} ${(await f.text()).trim()}` : 'none'; };
+  // Like LinkedIn's "add media": a button that makes a file input and clicks it.
+  $('photo').onclick = () => { const i = document.createElement('input'); i.type = 'file'; i.onchange = () => { $('photo-result').textContent = 'photo ' + i.files[0].name; }; i.click(); };
   $('hoverme').addEventListener('mouseover', () => { $('hover-result').textContent = 'hovered'; });
   $('bottom').onclick = () => { $('bottom-result').textContent = 'bottom clicked'; };
   customElements.define('open-widget', class extends HTMLElement { constructor() { super(); const r = this.attachShadow({ mode: 'open' }); r.innerHTML = '<button>Open shadow button</button>'; r.querySelector('button').onclick = () => { $('shadow-result').textContent = 'open clicked'; }; } });

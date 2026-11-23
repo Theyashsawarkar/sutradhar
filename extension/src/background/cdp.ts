@@ -101,8 +101,8 @@ export async function press(tabId: number, chord: string) {
   for (const m of mods.reverse()) { const d = keyDef(m); await send(tabId, 'Input.dispatchKeyEvent', { type: 'keyUp', key: d.key, code: d.code, windowsVirtualKeyCode: d.keyCode }); }
 }
 
-export async function type(tabId: number, text: string) {
-  if (text.length > 300) { await send(tabId, 'Input.insertText', { text }); return; }
+export async function type(tabId: number, text: string, delay = 0) {
+  if (text.length > 300 && !delay) { await send(tabId, 'Input.insertText', { text }); return; }
   for (const ch of text) {
     if (ch === '\n') { await press(tabId, 'Enter'); continue; }
     let def: { key: string; code: string; keyCode: number } | undefined;
@@ -110,6 +110,7 @@ export async function type(tabId: number, text: string) {
     if (!def || !def.code) { await send(tabId, 'Input.insertText', { text: ch }); continue; }
     await send(tabId, 'Input.dispatchKeyEvent', { type: 'keyDown', key: ch, code: def.code, windowsVirtualKeyCode: def.keyCode, text: ch, unmodifiedText: ch });
     await send(tabId, 'Input.dispatchKeyEvent', { type: 'keyUp', key: ch, code: def.code, windowsVirtualKeyCode: def.keyCode });
+    if (delay) await new Promise((r) => setTimeout(r, delay));
   }
 }
 

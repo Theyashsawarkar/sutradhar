@@ -4,11 +4,11 @@
 import { find, locate, snapshot } from './snapshot.ts';
 import { pageMarkdown } from './markdown.ts';
 import {
-  focusEnd, prepare, scroll, selectAllIn, selectOption, synthClear, synthClick, synthDrag, synthHover, synthKey,
+  armFiles, fileInputFor, filesTaken, focusEnd, prepare, scroll, selectAllIn, selectOption, synthClear, synthClick, synthDrag, synthHover, synthKey,
   synthType, target, upload, waitFor,
 } from './actions.ts';
 import { DEFAULT_RISK, type RiskConfig } from './risk.ts';
-import { setOverlay } from './overlay.ts';
+import { moveCursor, restCursor, setOverlay } from './overlay.ts';
 import { hookFirefoxPage, listenForErrors, listenToMainWorld, state } from './hooks.ts';
 import { describe } from './dom.ts';
 
@@ -50,7 +50,7 @@ function start() {
     risk: (a) => prepare(a.target, a.kind, risk, true).then((p) => p.risk).catch(() => ({ level: 'none' })),
     click: (a) => { const p = locate(a.target)!; synthClick(p ?? target(a.target), a.x, a.y, a.button, a.count, a.modifiers); return true; },
     hover: (a) => { synthHover(target(a.target), a.x, a.y); return true; },
-    type: async (a) => { const el = target(a.target); if (a.clear) synthClear(el); await synthType(el, a.value); return true; },
+    type: async (a) => { const el = target(a.target); if (a.clear) synthClear(el); await synthType(el, a.value, a.delay); return true; },
     clear: (a) => { synthClear(target(a.target)); return true; },
     selectAll: (a) => { selectAllIn(target(a.target)); return true; },
     focusEnd: (a) => { focusEnd(target(a.target)); return true; },
@@ -60,6 +60,9 @@ function start() {
     scroll: (a) => scroll(a.target && Object.keys(a.target).length ? target(a.target) : undefined, a.direction, a.amount),
     drag: async (a) => synthDrag(target(a.from), target(a.to), a.fx, a.fy, a.tx, a.ty),
     upload: (a) => upload(target(a.target), a.files),
+    hasFileInput: (a) => !!fileInputFor(target(a.target)),
+    armFiles: (a) => { armFiles(a.files); return true; },
+    filesTaken: () => filesTaken(),
     wait: async (a) => { const mine = stopFlag; return waitFor(a, () => stopFlag !== mine); },
     stop: () => { stopFlag++; return true; },
     changes: () => mutations,
@@ -67,7 +70,8 @@ function start() {
     iframes: () => Array.from(document.querySelectorAll('iframe,frame')).map((f) => (f as HTMLIFrameElement).src),
     geometry: () => ({ innerScreenX: (window as any).mozInnerScreenX, innerScreenY: (window as any).mozInnerScreenY, screenX, screenY, innerWidth, innerHeight, outerWidth, outerHeight, dpr: devicePixelRatio, title: document.title,
       scrollWidth: document.documentElement.scrollWidth, scrollHeight: document.documentElement.scrollHeight, scrollX, scrollY }),
-    overlay: (a) => { setOverlay(a); return true; },
+    overlay: (a) => { setOverlay(a); if (a?.mode === 'idle') restCursor(); return true; },
+    cursor: async (a) => { await moveCursor(a.x, a.y, a); return true; },
     dialogAnswer: (a) => { state.answers.push({ accept: a.accept, text: a.text }); return state.answers.length; },
     dialogs: () => state.dialogs,
     console: (a) => {

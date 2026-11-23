@@ -107,6 +107,9 @@ export async function scenario(t, { launch, engine }) {
     let r = await act([{ do: 'upload', selector: '#file', paths: [join(ROOT, 'tests/fixtures/upload.txt')] }]);
     assert.doesNotMatch(r, /FAILED/, r);
     await until(async () => /upload\.txt 13 hello upload/.test(await page()), 5000, 'file result');
+    r = await act([{ do: 'upload', text: 'Attach photo', paths: [join(ROOT, 'tests/fixtures/upload.txt')] }]);
+    assert.match(r, /no file picker opened/, r);
+    await until(async () => /photo upload\.txt/.test(await page()), 5000, 'picker interception');
     r = await act([{ do: 'drag', from: { selector: '#dragme' }, to: { selector: '#dropzone' } }]);
     assert.doesNotMatch(r, /FAILED/, r);
     assert.match(await page(), /dropped payload/);
@@ -134,7 +137,8 @@ export async function scenario(t, { launch, engine }) {
     const r = await act([{ do: 'type', selector: '#cc', value: '4111111111111111' }], { why: 'buy the test item' });
     assert.match(r, /handoff-done/);
     const notes = readFileSync(sb.notifyLog, 'utf8');
-    assert.match(notes, /tester needs you/);
+    assert.match(notes, /sutradhar needs you/);
+    assert.doesNotMatch(notes, /tester/, 'the agent is never named to the user');
     const s = await snap();
     assert.doesNotMatch(s, /4111/, 'the agent never typed the card number');
     sb.setAnswer('declined');
@@ -147,17 +151,13 @@ export async function scenario(t, { launch, engine }) {
     assert.doesNotMatch(r3, /FAILED|handoff/, r3);
   });
 
-  await only(t, 'send needs the user\'s Allow', async () => {
+  await only(t, 'send goes ahead without asking (only risky steps wait)', async () => {
     await c.navigate.mutate({ url: site.url + '/send.html' });
-    sb.setAnswer('denied');
-    let r = await act([{ do: 'click', text: 'Send' }]);
-    assert.match(r, /denied/);
-    assert.match(await page(), /draft/);
-    sb.setAnswer('approved');
-    r = await act([{ do: 'click', text: 'Send' }]);
-    assert.doesNotMatch(r, /FAILED/, r);
+    const before = existsSync(sb.notifyLog) ? readFileSync(sb.notifyLog, 'utf8') : '';
+    const r = await act([{ do: 'click', text: 'Send' }]);
+    assert.doesNotMatch(r, /FAILED|denied|approved/, r);
     assert.match(await page(), /\bsent\b/);
-    sb.setAnswer(null);
+    assert.equal(existsSync(sb.notifyLog) ? readFileSync(sb.notifyLog, 'utf8') : '', before, 'no notification for an ordinary step');
   });
 
   await only(t, 'tabs opened from an agent tab belong to it; others are off limits', async () => {
@@ -180,11 +180,19 @@ export async function scenario(t, { launch, engine }) {
     assert.match(back, /Fixture home|Opened tab|Compose/);
   });
 
-  await only(t, 'eval_js asks first', async () => {
-    sb.setAnswer('approved');
+  await only(t, 'the user sees a pointer and sutradhar, never the agent', async () => {
+    await c.navigate.mutate({ url: site.url + '/' });
+    // The pointer shows in a tab you can see (a hidden tab works without it).
+    const cur = /current tab: (\d+)/.exec(await c.tabs.query({}))[1];
+    await c.tab_focus.mutate({ tab: +cur });
+    await act([{ do: 'click', text: 'Add one' }]);
+    const r = await c.eval_js.mutate({ code: '!!document.querySelector("sutradhar-pointer")', why: 'test' });
+    assert.match(r, /true/);
+  });
+
+  await only(t, 'eval_js runs', async () => {
     const r = await c.eval_js.mutate({ code: 'document.title', why: 'test' });
     assert.match(r, /Fixture home|Second page|Compose/);
-    sb.setAnswer(null);
   });
 
   await only(t, 'downloads, PDF, recording, bookmarks, history, windows', async () => {

@@ -12,7 +12,8 @@ export interface SiteRule { approve?: Rule; eval?: Rule; cookies?: Rule; act?: R
 
 export interface Config {
   handoff: { timeout_minutes: number; reminder_minutes: number; extra_hosts: string[] };
-  approve: { timeout_minutes: number };
+  /** enabled: also ask before send/publish/delete, eval_js, cookies, clipboard reads, tab_attach, os_input. */
+  approve: { enabled: boolean; timeout_minutes: number };
   os_input: { enabled: boolean; auto_retry: boolean };
   notify: { enabled: boolean };
   sites: Record<string, SiteRule>;
@@ -20,7 +21,7 @@ export interface Config {
 
 const DEFAULTS: Config = {
   handoff: { timeout_minutes: 15, reminder_minutes: 5, extra_hosts: [] },
-  approve: { timeout_minutes: 5 },
+  approve: { enabled: false, timeout_minutes: 5 },
   os_input: { enabled: true, auto_retry: true },
   notify: { enabled: true },
   sites: {},
@@ -54,6 +55,11 @@ export function reloadConfig() { cached = null; return loadConfig(); }
 export function riskConfig(): RiskConfig {
   const c = loadConfig();
   return { ...DEFAULT_RISK, handoffHosts: [...DEFAULT_RISK.handoffHosts, ...c.handoff.extra_hosts] };
+}
+
+/** Whether a non-risky step (send, eval_js…) on this site needs the user's Allow. */
+export function needsApproval(url: string, what: keyof SiteRule): Rule {
+  return siteRule(url, what, loadConfig().approve.enabled ? 'ask' : 'allow');
 }
 
 /** The rule for `what` on the site of `url` (longest matching host wins). */

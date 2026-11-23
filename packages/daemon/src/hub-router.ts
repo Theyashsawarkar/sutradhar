@@ -6,7 +6,7 @@ import { basename, extname } from 'node:path';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { Hello } from '../../protocol/src/schemas.ts';
-import { loadConfig, riskConfig, saveConfig, siteRule } from './config.ts';
+import { loadConfig, needsApproval, riskConfig, saveConfig } from './config.ts';
 import { openGate, settle } from './gates.ts';
 import * as os from './osinput.ts';
 import { D, log, readLog } from './state.ts';
@@ -63,8 +63,11 @@ export const hubRouter = t.router({
     tab: z.number(), session: z.string(), url: z.string(), kind: z.enum(['handoff', 'approve']),
     reason: z.string(), what: z.string().optional(), step: z.string(), why: z.string().optional(),
   })).mutation(async ({ input, ctx }) => {
-    if (input.kind === 'approve' && siteRule(input.url, 'approve', 'ask') === 'allow') return 'approved' as const;
-    if (input.kind === 'approve' && siteRule(input.url, 'approve', 'ask') === 'deny') return 'denied' as const;
+    if (input.kind === 'approve') {
+      const rule = needsApproval(input.url, 'approve');
+      if (rule === 'allow') return 'approved' as const;
+      if (rule === 'deny') return 'denied' as const;
+    }
     const title = input.kind === 'handoff' ? handoffTitle(input.reason, input.step) : `${input.step === 'click' ? 'Click' : input.step} ${input.what ?? ''}`.trim();
     return openGate({ kind: input.kind, session: input.session, browserId: ctx.conn.browserId!, tab: input.tab, url: input.url, title, what: input.what, reason: input.reason, why: input.why });
   }),

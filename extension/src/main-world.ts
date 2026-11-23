@@ -24,6 +24,30 @@
       return a.value;
     };
   }
+  // File pickers: while an upload is armed, the page gets the files and no picker opens.
+  const proto = HTMLInputElement.prototype as any;
+  for (const name of ['click', 'showPicker']) {
+    const original = proto[name];
+    if (typeof original !== 'function') continue;
+    proto[name] = function (this: HTMLInputElement) {
+      if (this.type === 'file') {
+        const a = ask({ type: 'filepick' });
+        if (a && a.files) {
+          const dt = new DataTransfer();
+          for (const f of a.files) {
+            const bin = atob(f.b64); const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            dt.items.add(new File([bytes], f.name, { type: f.mime }));
+          }
+          this.files = dt.files;
+          this.dispatchEvent(new Event('input', { bubbles: true }));
+          this.dispatchEvent(new Event('change', { bubbles: true }));
+          return undefined;
+        }
+      }
+      return original.call(this);
+    };
+  }
   const fmt = (args: unknown[]) => args.map((a) => {
     if (typeof a === 'string') return a;
     if (a instanceof Error) return `${a.name}: ${a.message}`;
