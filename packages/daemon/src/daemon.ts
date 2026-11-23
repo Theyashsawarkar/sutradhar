@@ -42,6 +42,7 @@ function serve(sock: Socket) {
   sock.on('data', createLineReader((line) => {
     let f: Frame;
     try { f = JSON.parse(line); } catch { return; }
+    if ((f as { t: string }).t === 'meta') { conn.exe = String((f as unknown as { exe?: string }).exe ?? ''); return; }
     peer.handle(f);
   }));
   const gone = () => {

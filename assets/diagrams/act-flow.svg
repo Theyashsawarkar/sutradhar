@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" width="1000" height="600" role="img" aria-labelledby="t d">
+  <title id="t">One act call, end to end</title>
+  <desc id="d">An agent&#x27;s act call goes through the MCP server and the daemon to the extension, which prepares the element in the page, checks its risk, sends the input, and returns the result.</desc>
+
+  <style>
+    text { font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans", sans-serif; }
+    .panel, .card { stroke-width: 1.2; }
+    .title { font-size: 15px; font-weight: 700; }
+    .h { font-size: 13.5px; font-weight: 650; }
+    .t { font-size: 12.5px; }
+    .s { font-size: 11.5px; }
+    .mono { font-family: ui-monospace, "JetBrains Mono", "Noto Sans Mono", monospace; font-size: 11.5px; }
+    .edge { stroke-width: 1.6; fill: none; }
+    .edge.dash { stroke-dasharray: 5 4; }
+    .life { stroke-width: 1.4; stroke-dasharray: 4 5; }
+    .ring-accent, .ring-yellow, .ring-green, .ring-red { stroke-width: 2; }
+    .lbl { font-size: 11.5px; paint-order: stroke; stroke-width: 5px; stroke-linejoin: round; }
+    text { fill: #4c4f69; }
+    .bg { fill: #eff1f5; }
+    .panel { fill: #e6e9ef; stroke: #bcc0cc; }
+    .card { fill: #ffffff; stroke: #bcc0cc; }
+    .s, .lbl { fill: #6c6f85; }
+    .lbl { stroke: #eff1f5; }
+    .edge { stroke: #6c6f85; }
+    .edge.accent { stroke: #8839ef; } .edge.yellow { stroke: #df8e1d; } .edge.green { stroke: #40a02b; }
+    .life { stroke: #bcc0cc; }
+    .accentfill { fill: #8839ef; } .yellowfill { fill: #df8e1d; } .greenfill { fill: #40a02b; } .subfill { fill: #6c6f85; }
+    .ring-accent { stroke: #8839ef; } .ring-yellow { stroke: #df8e1d; } .ring-green { stroke: #40a02b; } .ring-red { stroke: #d20f39; }
+    .lbl-accent { fill: #8839ef; } .lbl-yellow { fill: #df8e1d; } .lbl-green { fill: #40a02b; } .lbl-red { fill: #d20f39; }
+    @media (prefers-color-scheme: dark) {
+    text { fill: #cdd6f4; }
+    .bg { fill: #1e1e2e; }
+    .panel { fill: #181825; stroke: #585b70; }
+    .card { fill: #313244; stroke: #585b70; }
+    .s, .lbl { fill: #a6adc8; }
+    .lbl { stroke: #1e1e2e; }
+    .edge { stroke: #a6adc8; }
+    .edge.accent { stroke: #cba6f7; } .edge.yellow { stroke: #f9e2af; } .edge.green { stroke: #a6e3a1; }
+    .life { stroke: #585b70; }
+    .accentfill { fill: #cba6f7; } .yellowfill { fill: #f9e2af; } .greenfill { fill: #a6e3a1; } .subfill { fill: #a6adc8; }
+    .ring-accent { stroke: #cba6f7; } .ring-yellow { stroke: #f9e2af; } .ring-green { stroke: #a6e3a1; } .ring-red { stroke: #f38ba8; }
+    .lbl-accent { fill: #cba6f7; } .lbl-yellow { fill: #f9e2af; } .lbl-green { fill: #a6e3a1; } .lbl-red { fill: #f38ba8; }
+    }
+  </style>
+
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="subfill"/></marker>
+    <marker id="aa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="accentfill"/></marker>
+    <marker id="ay" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="yellowfill"/></marker>
+    <marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="greenfill"/></marker>
+  </defs>
+  <rect class="bg" x="0" y="0" width="1000" height="600" rx="18"/>
+  <text class="title " x="30" y="40" text-anchor="start">One act call, end to end</text>
+  <rect class="card " x="56.0" y="58" width="148" height="50" rx="12"/>
+  <text class="h " x="130.0" y="80" text-anchor="middle">Agent</text>
+  <text class="s " x="130.0" y="98" text-anchor="middle">Claude, Codex…</text>
+  <line class="life" x1="130.0" y1="108" x2="130.0" y2="570"/>
+  <rect class="card ring-accent" x="241.0" y="58" width="148" height="50" rx="12"/>
+  <text class="h " x="315.0" y="80" text-anchor="middle">sutradhar mcp</text>
+  <text class="s " x="315.0" y="98" text-anchor="middle">MCP server</text>
+  <line class="life" x1="315.0" y1="108" x2="315.0" y2="570"/>
+  <rect class="card ring-accent" x="426.0" y="58" width="148" height="50" rx="12"/>
+  <text class="h " x="500.0" y="80" text-anchor="middle">Daemon</text>
+  <text class="s " x="500.0" y="98" text-anchor="middle">sessions, gates</text>
+  <line class="life" x1="500.0" y1="108" x2="500.0" y2="570"/>
+  <rect class="card " x="611.0" y="58" width="148" height="50" rx="12"/>
+  <text class="h " x="685.0" y="80" text-anchor="middle">Extension</text>
+  <text class="s " x="685.0" y="98" text-anchor="middle">background</text>
+  <line class="life" x1="685.0" y1="108" x2="685.0" y2="570"/>
+  <rect class="card " x="796.0" y="58" width="148" height="50" rx="12"/>
+  <text class="h " x="870.0" y="80" text-anchor="middle">Page</text>
+  <text class="s " x="870.0" y="98" text-anchor="middle">content script</text>
+  <line class="life" x1="870.0" y1="108" x2="870.0" y2="570"/>
+  <path class="edge  " d="M134.0 140 L311.0 140" marker-end="url(#a)"/>
+  <text class="lbl" x="222.5" y="132" text-anchor="middle" font-weight="650">act {steps: [click &quot;Save&quot;], why}</text>
+  <path class="edge accent " d="M319.0 180 L496.0 180" marker-end="url(#aa)"/>
+  <text class="lbl lbl-accent" x="407.5" y="172" text-anchor="middle" font-weight="650">tRPC agent.act</text>
+  <text class="lbl" x="407.5" y="195" text-anchor="middle">unix socket</text>
+  <path class="edge  " d="M500.0 228 h46 v18 h-40" marker-end="url(#a)"/>
+  <text class="lbl" x="554.0" y="236" text-anchor="start">this session owns the tab? not stopped?</text>
+  <path class="edge accent " d="M504.0 274 L681.0 274" marker-end="url(#aa)"/>
+  <text class="lbl lbl-accent" x="592.5" y="266" text-anchor="middle" font-weight="650">tRPC page.act</text>
+  <text class="lbl" x="592.5" y="289" text-anchor="middle">native messaging</text>
+  <path class="edge  " d="M689.0 328 L866.0 328" marker-end="url(#a)"/>
+  <text class="lbl" x="777.5" y="320" text-anchor="middle" font-weight="650">prepare(target)</text>
+  <rect class="card " x="605.9000000000001" y="352" width="374.0999999999999" height="28" rx="10"/>
+  <text class="t " x="792.95" y="371" text-anchor="middle">find · scroll into view · visible? covered? risk?</text>
+  <path class="edge  dash" d="M866.0 408 L689.0 408" marker-end="url(#a)"/>
+  <text class="lbl" x="777.5" y="400" text-anchor="middle" font-weight="650">element, point, risk = none</text>
+  <path class="edge green " d="M689.0 448 L866.0 448" marker-end="url(#ag)"/>
+  <text class="lbl lbl-green" x="777.5" y="440" text-anchor="middle" font-weight="650">input: CDP (Chrome) · events or real mouse (Firefox/Zen)</text>
+  <path class="edge  dash" d="M681.0 488 L504.0 488" marker-end="url(#a)"/>
+  <text class="lbl" x="592.5" y="480" text-anchor="middle" font-weight="650">results, URL, dialogs seen</text>
+  <path class="edge  dash" d="M496.0 528 L319.0 528" marker-end="url(#a)"/>
+  <text class="lbl" x="407.5" y="520" text-anchor="middle" font-weight="650">logged, returned</text>
+  <path class="edge  " d="M311.0 568 L134.0 568" marker-end="url(#a)"/>
+  <text class="lbl" x="222.5" y="560" text-anchor="middle" font-weight="650">1. click: ok — clicked &quot;Save&quot;</text>
+  <text class="lbl" x="222.5" y="583" text-anchor="middle">page text inside &lt;untrusted&gt;</text>
+</svg>

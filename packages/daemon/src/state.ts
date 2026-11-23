@@ -50,6 +50,8 @@ export interface Conn {
   role?: 'browser' | 'agent';
   browserId?: string;
   sessionId?: string;
+  /** The browser executable, as the native host saw its parent. */
+  exe?: string;
 }
 
 export const D = {

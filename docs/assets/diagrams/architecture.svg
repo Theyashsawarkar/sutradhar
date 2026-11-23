@@ -1,0 +1,170 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 860" width="1000" height="860" role="img" aria-labelledby="t d">
+  <title id="t">sutradhar architecture</title>
+  <desc id="d">Agents talk MCP to sutradhar mcp, which talks tRPC to the daemon over a unix socket; the daemon talks tRPC to the extension in each browser through native messaging; the extension acts in web pages; risky steps go to the user through notifications and a Your turn card; real mouse and keyboard go through sway.</desc>
+
+  <style>
+    text { font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans", sans-serif; }
+    .panel, .card { stroke-width: 1.2; }
+    .title { font-size: 15px; font-weight: 700; }
+    .h { font-size: 13.5px; font-weight: 650; }
+    .t { font-size: 12.5px; }
+    .s { font-size: 11.5px; }
+    .mono { font-family: ui-monospace, "JetBrains Mono", "Noto Sans Mono", monospace; font-size: 11.5px; }
+    .edge { stroke-width: 1.6; fill: none; }
+    .edge.dash { stroke-dasharray: 5 4; }
+    .life { stroke-width: 1.4; stroke-dasharray: 4 5; }
+    .ring-accent, .ring-yellow, .ring-green, .ring-red { stroke-width: 2; }
+    .lbl { font-size: 11.5px; paint-order: stroke; stroke-width: 5px; stroke-linejoin: round; }
+    text { fill: #4c4f69; }
+    .bg { fill: #eff1f5; }
+    .panel { fill: #e6e9ef; stroke: #bcc0cc; }
+    .card { fill: #ffffff; stroke: #bcc0cc; }
+    .s, .lbl { fill: #6c6f85; }
+    .lbl { stroke: #eff1f5; }
+    .edge { stroke: #6c6f85; }
+    .edge.accent { stroke: #8839ef; } .edge.yellow { stroke: #df8e1d; } .edge.green { stroke: #40a02b; }
+    .life { stroke: #bcc0cc; }
+    .accentfill { fill: #8839ef; } .yellowfill { fill: #df8e1d; } .greenfill { fill: #40a02b; } .subfill { fill: #6c6f85; }
+    .ring-accent { stroke: #8839ef; } .ring-yellow { stroke: #df8e1d; } .ring-green { stroke: #40a02b; } .ring-red { stroke: #d20f39; }
+    .lbl-accent { fill: #8839ef; } .lbl-yellow { fill: #df8e1d; } .lbl-green { fill: #40a02b; } .lbl-red { fill: #d20f39; }
+    @media (prefers-color-scheme: dark) {
+    text { fill: #cdd6f4; }
+    .bg { fill: #1e1e2e; }
+    .panel { fill: #181825; stroke: #585b70; }
+    .card { fill: #313244; stroke: #585b70; }
+    .s, .lbl { fill: #a6adc8; }
+    .lbl { stroke: #1e1e2e; }
+    .edge { stroke: #a6adc8; }
+    .edge.accent { stroke: #cba6f7; } .edge.yellow { stroke: #f9e2af; } .edge.green { stroke: #a6e3a1; }
+    .life { stroke: #585b70; }
+    .accentfill { fill: #cba6f7; } .yellowfill { fill: #f9e2af; } .greenfill { fill: #a6e3a1; } .subfill { fill: #a6adc8; }
+    .ring-accent { stroke: #cba6f7; } .ring-yellow { stroke: #f9e2af; } .ring-green { stroke: #a6e3a1; } .ring-red { stroke: #f38ba8; }
+    .lbl-accent { fill: #cba6f7; } .lbl-yellow { fill: #f9e2af; } .lbl-green { fill: #a6e3a1; } .lbl-red { fill: #f38ba8; }
+    }
+  </style>
+
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="subfill"/></marker>
+    <marker id="aa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="accentfill"/></marker>
+    <marker id="ay" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="yellowfill"/></marker>
+    <marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="greenfill"/></marker>
+  </defs>
+  <rect class="bg" x="0" y="0" width="1000" height="860" rx="18"/>
+  <text class="title " x="30" y="44" text-anchor="start">sutradhar: how a request travels</text>
+  <text class="s " x="30" y="64" text-anchor="start">Every hop is tRPC with the same zod schemas; arrows show who calls whom.</text>
+  <rect class="panel " x="30" y="84" width="690" height="110" rx="16"/>
+  <text class="h " x="48" y="108" text-anchor="start">AI agents</text>
+  <rect class="card " x="48" y="120" width="208" height="58" rx="12"/>
+  <text class="h " x="62" y="144" text-anchor="start">Claude Code</text>
+  <text class="s " x="62" y="164" text-anchor="start">any account, any vesha profile</text>
+  <rect class="card " x="272" y="120" width="208" height="58" rx="12"/>
+  <text class="h " x="286" y="144" text-anchor="start">Codex · opencode · Gemini</text>
+  <text class="s " x="286" y="164" text-anchor="start">every MCP client</text>
+  <rect class="card " x="496" y="120" width="208" height="58" rx="12"/>
+  <text class="h " x="510" y="144" text-anchor="start">Scripts</text>
+  <text class="s " x="510" y="164" text-anchor="start">sutradhar call TOOL &#x27;{json}&#x27;</text>
+  <rect class="card ring-accent" x="150" y="240" width="210" height="52" rx="12"/>
+  <text class="h " x="255" y="262" text-anchor="middle">sutradhar mcp</text>
+  <text class="s " x="255" y="280" text-anchor="middle">MCP server on stdio</text>
+  <rect class="card ring-accent" x="420" y="240" width="210" height="52" rx="12"/>
+  <text class="h " x="525" y="262" text-anchor="middle">sutradhar call</text>
+  <text class="s " x="525" y="280" text-anchor="middle">the CLI, same API</text>
+  <path class="edge  " d="M152 178 L220 240" marker-end="url(#a)"/>
+  <path class="edge  " d="M376 178 L280 240" marker-end="url(#a)"/>
+  <path class="edge  " d="M600 178 L540 240" marker-end="url(#a)"/>
+  <text class="lbl" x="120" y="220" text-anchor="start">MCP (stdio)</text>
+  <rect class="panel ring-accent" x="30" y="340" width="690" height="200" rx="16"/>
+  <text class="h " x="48" y="366" text-anchor="start">sutradhar daemon</text>
+  <text class="s " x="186" y="366" text-anchor="start">systemd user service · one per login · $XDG_RUNTIME_DIR/sutradhar/sock (0600)</text>
+  <rect class="card " x="48" y="382" width="208" height="64" rx="12"/>
+  <text class="h " x="62" y="404" text-anchor="start">Sessions</text>
+  <text class="s " x="62" y="422" text-anchor="start">one per agent; its own tabs</text>
+  <text class="s " x="62" y="437" text-anchor="start">and tab group; locks</text>
+  <rect class="card " x="272" y="382" width="208" height="64" rx="12"/>
+  <text class="h " x="286" y="404" text-anchor="start">Risk gates</text>
+  <text class="s " x="286" y="422" text-anchor="start">hand-off: the user does it</text>
+  <text class="s " x="286" y="437" text-anchor="start">approve: the user says yes</text>
+  <rect class="card " x="496" y="382" width="208" height="64" rx="12"/>
+  <text class="h " x="510" y="404" text-anchor="start">Notifications</text>
+  <text class="s " x="510" y="422" text-anchor="start">sent the moment a</text>
+  <text class="s " x="510" y="437" text-anchor="start">wait starts (akashvani)</text>
+  <rect class="card " x="48" y="458" width="208" height="64" rx="12"/>
+  <text class="h " x="62" y="480" text-anchor="start">Action log</text>
+  <text class="s " x="62" y="498" text-anchor="start">every call, its result,</text>
+  <text class="s " x="62" y="513" text-anchor="start">~/.local/state/sutradhar</text>
+  <rect class="card " x="272" y="458" width="208" height="64" rx="12"/>
+  <text class="h " x="286" y="480" text-anchor="start">Stop / resume</text>
+  <text class="s " x="286" y="498" text-anchor="start">one Stop cancels every</text>
+  <text class="s " x="286" y="513" text-anchor="start">call in every browser</text>
+  <rect class="card " x="496" y="458" width="208" height="64" rx="12"/>
+  <text class="h " x="510" y="480" text-anchor="start">Real input</text>
+  <text class="s " x="510" y="498" text-anchor="start">virtual pointer + wtype</text>
+  <text class="s " x="510" y="513" text-anchor="start">for trusted clicks, browser UI</text>
+  <path class="edge accent " d="M255 292 L255 340" marker-end="url(#aa)"/>
+  <path class="edge accent " d="M525 292 L525 340" marker-end="url(#aa)"/>
+  <text class="lbl lbl-accent" x="268" y="322" text-anchor="start" font-weight="650">tRPC  agent.*</text>
+  <text class="lbl lbl-accent" x="538" y="322" text-anchor="start">unix socket</text>
+  <rect class="panel ring-yellow" x="760" y="84" width="210" height="200" rx="16"/>
+  <text class="h " x="778" y="108" text-anchor="start">You</text>
+  <text class="s " x="778" y="130" text-anchor="start">Notification: “claude needs</text>
+  <text class="s " x="778" y="146" text-anchor="start">you”, with Show me · Done ·</text>
+  <text class="s " x="778" y="162" text-anchor="start">I won’t (or Allow · Deny)</text>
+  <text class="s " x="778" y="178" text-anchor="start"></text>
+  <text class="s " x="778" y="194" text-anchor="start">In the tab: the yellow</text>
+  <text class="s " x="778" y="210" text-anchor="start">Your turn card, the panel,</text>
+  <text class="s " x="778" y="226" text-anchor="start">the Stop button</text>
+  <rect class="panel " x="760" y="340" width="210" height="96" rx="16"/>
+  <text class="h " x="778" y="364" text-anchor="start">sway (Wayland)</text>
+  <text class="s " x="778" y="384" text-anchor="start">virtual pointer device</text>
+  <text class="s " x="778" y="400" text-anchor="start">wtype virtual keyboard</text>
+  <text class="s " x="778" y="416" text-anchor="start">window geometry</text>
+  <path class="edge  " d="M720 410 L760 400" marker-end="url(#a)"/>
+  <path class="edge yellow " d="M720 380 C 740 300, 740 250, 760 230" marker-end="url(#ay)"/>
+  <text class="lbl lbl-yellow" x="748" y="318" text-anchor="end">notify</text>
+  <path class="edge accent " d="M150 540 L150 584" marker-end="url(#aa)" marker-start="url(#aa)"/>
+  <path class="edge accent " d="M375 540 L375 584" marker-end="url(#aa)" marker-start="url(#aa)"/>
+  <path class="edge accent " d="M600 540 L600 584" marker-end="url(#aa)" marker-start="url(#aa)"/>
+  <text class="lbl lbl-accent" x="612" y="566" text-anchor="start" font-weight="650">tRPC both ways: browserRouter ⇄ hub.*</text>
+  <rect class="card " x="70" y="584" width="160" height="40" rx="10"/>
+  <text class="mono " x="150" y="609" text-anchor="middle">sutradhar host</text>
+  <rect class="card " x="295" y="584" width="160" height="40" rx="10"/>
+  <text class="mono " x="375" y="609" text-anchor="middle">sutradhar host</text>
+  <rect class="card " x="520" y="584" width="160" height="40" rx="10"/>
+  <text class="mono " x="600" y="609" text-anchor="middle">sutradhar host</text>
+  <text class="s " x="722" y="596" text-anchor="start">native messaging (stdio):</text>
+  <text class="s " x="722" y="611" text-anchor="start">only this extension&#x27;s ID</text>
+  <text class="s " x="722" y="626" text-anchor="start">may start the host;</text>
+  <text class="s " x="722" y="641" text-anchor="start">frames over 1 MB are split</text>
+  <path class="edge  " d="M150 624 L150 664" marker-end="url(#a)" marker-start="url(#a)"/>
+  <path class="edge  " d="M375 624 L375 664" marker-end="url(#a)" marker-start="url(#a)"/>
+  <path class="edge  " d="M600 624 L600 664" marker-end="url(#a)" marker-start="url(#a)"/>
+  <rect class="panel " x="46" y="664" width="208" height="104" rx="14"/>
+  <text class="h " x="60" y="688" text-anchor="start">Chrome · Chromium · Brave</text>
+  <text class="s " x="60" y="707" text-anchor="start">MV3 service worker</text>
+  <text class="s " x="60" y="723" text-anchor="start">input through CDP (trusted)</text>
+  <rect class="card " x="58" y="734" width="184" height="24" rx="8"/>
+  <text class="s " x="150" y="751" text-anchor="middle">content script in every frame</text>
+  <rect class="panel " x="271" y="664" width="208" height="104" rx="14"/>
+  <text class="h " x="285" y="688" text-anchor="start">Firefox</text>
+  <text class="s " x="285" y="707" text-anchor="start">MV2 background page</text>
+  <text class="s " x="285" y="723" text-anchor="start">synthetic events + real input</text>
+  <rect class="card " x="283" y="734" width="184" height="24" rx="8"/>
+  <text class="s " x="375" y="751" text-anchor="middle">content script in every frame</text>
+  <rect class="panel " x="496" y="664" width="208" height="104" rx="14"/>
+  <text class="h " x="510" y="688" text-anchor="start">Zen</text>
+  <text class="s " x="510" y="707" text-anchor="start">MV2 background page</text>
+  <text class="s " x="510" y="723" text-anchor="start">synthetic events + real input</text>
+  <rect class="card " x="508" y="734" width="184" height="24" rx="8"/>
+  <text class="s " x="600" y="751" text-anchor="middle">content script in every frame</text>
+  <path class="edge  dash" d="M940 436 V716 H708" marker-end="url(#a)"/>
+  <text class="lbl" x="932" y="694" text-anchor="end">real clicks and keys</text>
+  <rect class="panel " x="30" y="790" width="690" height="50" rx="14"/>
+  <text class="h " x="48" y="820" text-anchor="start">Web pages</text>
+  <text class="s " x="150" y="820" text-anchor="start">snapshot with refs · act · dialogs answered · risky fields and buttons checked · Your turn card</text>
+  <path class="edge  " d="M150 768 L150 790" marker-end="url(#a)" marker-start="url(#a)"/>
+  <path class="edge  " d="M375 768 L375 790" marker-end="url(#a)" marker-start="url(#a)"/>
+  <path class="edge  " d="M600 768 L600 790" marker-end="url(#a)" marker-start="url(#a)"/>
+  <rect class="card ring-red" x="760" y="790" width="210" height="50" rx="14"/>
+  <text class="h " x="778" y="813" text-anchor="start">Never done by an agent</text>
+  <text class="s " x="778" y="830" text-anchor="start">pay · passwords · OTP · CAPTCHA</text>
+</svg>

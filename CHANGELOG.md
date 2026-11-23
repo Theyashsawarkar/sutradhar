@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- README: the install steps per browser (Zen's signing switch, Chrome's
+  unpacked folder, Firefox's temporary add-on) and a full "How it works":
+  three generated SVG diagrams (the pieces, one call end to end, a hand-off),
+  light and dark, from `scripts/diagrams.py`.
+- Zen shows as Zen: the native host tells the daemon which program started
+  it, since Zen calls itself Firefox to extensions.
+
 - Docs and `sutradhar install`: Zen needs `xpinstall.signatures.required`
   set to `false` in about:config before it takes the unsigned .xpi (its
   default is `true`, like Firefox's, but Zen honours the switch).

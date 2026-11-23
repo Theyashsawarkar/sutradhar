@@ -29,6 +29,8 @@ export const clients = new Map<number, TRPCClient<BrowserRouter>>();
 export const hubRouter = t.router({
   hello: browserProc.input(Hello).mutation(({ input, ctx }) => {
     if (ctx.conn.role === 'agent') throw new TRPCError({ code: 'FORBIDDEN', message: 'an agent connection cannot become a browser' });
+    // Zen tells extensions it is Firefox; the host saw the real executable.
+    if (ctx.conn.exe && /zen/i.test(ctx.conn.exe) && input.kind !== 'zen') input = { ...input, kind: 'zen', name: 'Zen' };
     let id: string = input.kind;
     for (let n = 2; [...D.browsers.values()].some((b) => b.id === id && b.hello.profile !== input.profile); n++) id = `${input.kind}-${n}`;
     const client = clients.get(ctx.conn.id)!;

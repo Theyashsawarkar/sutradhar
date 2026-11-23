@@ -89,27 +89,53 @@ to you whenever a step is yours.
 
 ### Steps
 
+**1. The daemon and the native-messaging hosts.** In Vayu it's one command:
+
 ```sh
-git clone https://github.com/Theyashsawarkar/sutradhar ~/.local/share/sutradhar-src
-cd ~/.local/share/sutradhar-src
-pnpm install && pnpm build
-ln -s "$PWD/bin/sutradhar" ~/.local/bin/sutradhar
-sutradhar install          # native-messaging hosts for every browser found + the user service
+kosha install sutradhar     # builds it, links `sutradhar`, runs `sutradhar install`
 ```
 
-Then add the extension to each browser (`sutradhar install` prints these paths):
+Anywhere else:
 
-- **Chrome, Chromium, Brave:** `chrome://extensions` → Developer mode → **Load
-  unpacked** → `dist/chrome`.
-- **Zen:** first open `about:config` and set `xpinstall.signatures.required`
-  to `false` (Zen honours it; release Firefox doesn't). Then `about:addons` →
-  gear → **Install Add-on From File…** → `dist/sutradhar-firefox.xpi`.
-- **Firefox:** use the signed `.xpi` from a [release](https://github.com/Theyashsawarkar/sutradhar/releases);
-  while developing, `about:debugging` → **Load Temporary Add-on** → `dist/firefox/manifest.json`.
+```sh
+git clone https://github.com/Theyashsawarkar/sutradhar ~/.local/share/sutradhar
+cd ~/.local/share/sutradhar
+pnpm install && pnpm build
+ln -s "$PWD/bin/sutradhar" ~/.local/bin/sutradhar
+sutradhar install           # native-messaging hosts for every browser found + the user service
+```
 
-Check it with `sutradhar doctor`. In [Vayu](https://github.com/Theyashsawarkar/vayu)
-it is a [kosha](https://github.com/Theyashsawarkar/kosha) package (`kosha install sutradhar`)
-and [vishvakarma](https://github.com/Theyashsawarkar/vishvakarma) gives its MCP server to every agent.
+`sutradhar install` writes a host manifest for every browser it finds
+(Chrome, Chromium, Brave, Edge, Vivaldi in `~/.config/<browser>/NativeMessagingHosts`;
+Firefox and Zen in `~/.mozilla/native-messaging-hosts`), enables
+`sutradhar.service`, and prints where the extension files are.
+
+**2. The extension, once per browser.** Browsers don't let another program put
+an extension into your profile, so this step is yours. The files are in
+`dist/` (or download them from a [release](https://github.com/Theyashsawarkar/sutradhar/releases)):
+
+| Browser | File | How |
+|---|---|---|
+| **Zen** | `dist/sutradhar-firefox.xpi` | Zen only installs add-ons signed by Mozilla unless you allow others: open `about:config`, search `xpinstall.signatures.required`, double-click it to **false**. Then `about:addons` → gear → **Install Add-on From File…** → the `.xpi`, and allow its permissions. |
+| **Chrome, Chromium, Brave** | `dist/chrome/` | `chrome://extensions` (`brave://extensions`) → turn on **Developer mode** → **Load unpacked** → the folder. Keep the folder where it is: the browser runs it from there. |
+| **Firefox** | `dist/firefox/manifest.json` | Release Firefox only keeps Mozilla-signed add-ons (a signed build is coming). Until then: `about:debugging` → **This Firefox** → **Load Temporary Add-on…** → `manifest.json`; it lasts until Firefox restarts. |
+
+Turning off `xpinstall.signatures.required` lets Zen install any unsigned
+add-on, not just this one; turn it back on once a signed build is out.
+
+**3. Check it.**
+
+```sh
+sutradhar status            # daemon: running … browsers: zen: Zen 160.0.1, extension 0.1.1
+sutradhar doctor            # every piece, with a fix for anything missing
+```
+
+The toolbar button opens sutradhar's panel: green "Connected" means the
+browser reached the daemon.
+
+**4. The agents.** In Vayu, [vishvakarma](https://github.com/Theyashsawarkar/vishvakarma)
+gives the MCP server to every agent (Claude Code on every account, Codex,
+opencode, Gemini CLI); restart an agent's session to pick it up. Elsewhere, see below.
 
 ### Adding it to an agent by hand
 
@@ -272,37 +298,86 @@ Files: the log is `~/.local/state/sutradhar/log.jsonl`; downloads saved by
 
 ## How it works
 
-```
- agent ──MCP──▶ sutradhar mcp ─╮
- script ─────▶ sutradhar call ─┤  tRPC over a unix socket (0600)
-                               ▼
-                     sutradhar daemon  ── sessions, tab ownership, risk gates,
-                               ▲          notifications, log, real mouse/keyboard
-          tRPC over native messaging (through `sutradhar host`)
-                               │
-                  extension (Chrome MV3 / Firefox MV2)
-                   background: tabs, downloads, CDP input
-                   content script in every frame: snapshot, refs, actions,
-                   risk checks, dialog guard, the "Your turn" card
-```
+### The pieces
+
+<p align="center">
+  <img src="assets/diagrams/architecture.svg" alt="Architecture: agents talk MCP to sutradhar mcp, which talks tRPC over a unix socket to the daemon; the daemon talks tRPC through a native-messaging host to the extension in each browser; the extension acts in web pages; risky steps go to you through a notification and a Your turn card; real mouse and keyboard go through sway." width="900">
+</p>
+
+- **Agents** start `sutradhar mcp` (an MCP server on stdio); scripts use
+  `sutradhar call`. Both are thin clients: each opens a **session** on the
+  daemon, named after the agent.
+- **The daemon** (`sutradhar.service`, one per login) is where everything
+  meets: connected browsers, agent sessions and the tabs each owns, the risk
+  gates, notifications, the action log, Stop, and the real mouse and keyboard.
+  It listens on `$XDG_RUNTIME_DIR/sutradhar/sock` (mode 0600). Any client
+  starts it if it isn't running.
+- **The native-messaging host** (`sutradhar host`) is started by each browser
+  when the extension connects. It only pipes frames between the browser's
+  stdio and the daemon's socket, splitting any over the browsers' 1 MB limit,
+  and tells the daemon which program started it (Zen calls itself Firefox).
+- **The extension** has a background part (tabs, windows, downloads,
+  bookmarks, history, cookies, Chrome's debugger for trusted input and
+  screenshots) and a **content script in every frame** (the snapshot and its
+  refs, finding elements, synthetic input, risk checks, the dialog guard,
+  the console log, and the on-page overlay and Your turn card).
+
+### One call, end to end
+
+<p align="center">
+  <img src="assets/diagrams/act-flow.svg" alt="Sequence of one act call: agent to sutradhar mcp, tRPC to the daemon, which checks the session owns the tab, tRPC through native messaging to the extension, which asks the page's content script to prepare the element and check its risk, sends the input, and returns the result back up as untrusted text." width="900">
+</p>
+
+1. The agent calls `act` with steps and a `why`.
+2. `sutradhar mcp` calls `agent.act` on the daemon over the unix socket.
+3. The daemon checks the session may use that tab (its own tabs and the
+   popups they open, or one you lent it) and that you haven't pressed Stop,
+   then calls `page.act` on the extension.
+4. For each step the content script finds the element (by ref, selector,
+   text or point, through frames and shadow DOM), scrolls it into view, waits
+   for it to settle, checks it is visible, enabled and not covered, and judges
+   its **risk**.
+5. With no risk, the input goes in: CDP on Chrome (trusted); careful synthetic
+   events on Firefox and Zen, or the real pointer and keyboard when a step asks
+   for them or a page ignored a synthetic click.
+6. The results (each step's outcome, the URL, any dialogs answered) go back
+   up; the daemon logs the call; the agent gets the text inside `<untrusted>`.
+
+### When a step is yours
+
+<p align="center">
+  <img src="assets/diagrams/handoff-flow.svg" alt="Sequence of a hand-off: the agent asks to type into a card field; the page judges it a hand-off and does not run it; the daemon notifies you at once and shows a Your turn card in the tab; you pay yourself and press Done; the agent is told handoff-done." width="900">
+</p>
+
+The gate is in the page, not in the agent's good manners: the step never runs.
+The notification goes out first, then the tab comes forward with the yellow
+card. Your **Done** (from the card, the toolbar panel or the notification)
+reaches the daemon, and the agent's call returns `handoff-done`. An approval
+(send, publish, delete…) takes the same path, but your **Allow** lets the step
+run.
+
+### Design choices
 
 - **tRPC on every hop.** One set of zod schemas is the input of each procedure
-  and of each MCP tool, so the tool list can't drift from the code. Both ends
-  serve a router: the extension serves `browserRouter` (the daemon calls it),
-  the daemon serves `hub` (the extension calls it) and `agent` (agents call it),
-  over one framed, two-way link (`packages/protocol/src/rpc.ts`).
+  and of each MCP tool, so the tool list can't drift from the code. Both ends of
+  a connection serve a router: the extension serves `browserRouter` (the daemon
+  calls it), the daemon serves `hub` (the extension calls it) and `agent`
+  (agents call it), over one framed, two-way link
+  ([`packages/protocol/src/rpc.ts`](packages/protocol/src/rpc.ts)).
 - **Native messaging, not a localhost port.** Any website can reach a localhost
   port; only this extension's ID can start the native host.
 - **Input.** Chrome: CDP `Input.*` (trusted). Firefox/Zen: synthetic events done
   carefully (`execCommand` for typing, so frameworks see it), and the real
-  pointer/keyboard when needed. Firefox's popup blocker ignores synthetic clicks
+  pointer (a Wayland virtual pointer device, written into the daemon) and
+  keyboard (wtype) when needed. Firefox's popup blocker ignores synthetic clicks
   on new-tab links, so those open the way the click would have.
 - **Dialogs** are answered in the page (alert: OK; confirm/prompt: Cancel unless
   the agent set an answer with `dialog`), so they never freeze an agent tab, and
   Chrome's debugger answers any that slip through. Outside agent tabs nothing
   changes.
 
-Design notes are in [docs/adr](docs/adr/).
+The diagrams are generated by [`scripts/diagrams.py`](scripts/diagrams.py)
+(light and dark in one SVG). Design notes are in [docs/adr](docs/adr/).
 
 ## Security
 
@@ -321,6 +396,7 @@ Design notes are in [docs/adr](docs/adr/).
 ```sh
 pnpm install
 pnpm build          # dist/: daemon bundle, dist/chrome, dist/firefox, the .xpi
+python3 scripts/diagrams.py   # the README's diagrams (assets/diagrams/*.svg)
 pnpm typecheck
 pnpm test           # unit tests (vitest)
 pnpm e2e            # Chromium, Zen and Firefox in throwaway headless profiles, plus MCP
@@ -343,6 +419,9 @@ browser, profile, daemon or desktop.
   input; it goes away 20 seconds after the agent's last action.
 - **A click on Firefox/Zen did nothing**: pass `trusted: true` on the step, or
   check `os_input.enabled` (needs sway and `wtype`).
+- **Zen says "This add-on could not be installed because it has not been
+  verified"**: set `xpinstall.signatures.required` to `false` in `about:config`
+  first (see [Install](#steps)).
 - **Firefox won't install the .xpi**: release Firefox only takes signed add-ons;
   use the release's signed file, or Zen.
 

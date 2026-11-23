@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 640" width="1000" height="640" role="img" aria-labelledby="t d">
+  <title id="t">Your turn: a payment step</title>
+  <desc id="d">When an agent&#x27;s step touches a card, password, OTP or pay button, the page refuses it, the daemon notifies you at once and shows a Your turn card; you do it and press Done, and the agent is told.</desc>
+
+  <style>
+    text { font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans", sans-serif; }
+    .panel, .card { stroke-width: 1.2; }
+    .title { font-size: 15px; font-weight: 700; }
+    .h { font-size: 13.5px; font-weight: 650; }
+    .t { font-size: 12.5px; }
+    .s { font-size: 11.5px; }
+    .mono { font-family: ui-monospace, "JetBrains Mono", "Noto Sans Mono", monospace; font-size: 11.5px; }
+    .edge { stroke-width: 1.6; fill: none; }
+    .edge.dash { stroke-dasharray: 5 4; }
+    .life { stroke-width: 1.4; stroke-dasharray: 4 5; }
+    .ring-accent, .ring-yellow, .ring-green, .ring-red { stroke-width: 2; }
+    .lbl { font-size: 11.5px; paint-order: stroke; stroke-width: 5px; stroke-linejoin: round; }
+    text { fill: #4c4f69; }
+    .bg { fill: #eff1f5; }
+    .panel { fill: #e6e9ef; stroke: #bcc0cc; }
+    .card { fill: #ffffff; stroke: #bcc0cc; }
+    .s, .lbl { fill: #6c6f85; }
+    .lbl { stroke: #eff1f5; }
+    .edge { stroke: #6c6f85; }
+    .edge.accent { stroke: #8839ef; } .edge.yellow { stroke: #df8e1d; } .edge.green { stroke: #40a02b; }
+    .life { stroke: #bcc0cc; }
+    .accentfill { fill: #8839ef; } .yellowfill { fill: #df8e1d; } .greenfill { fill: #40a02b; } .subfill { fill: #6c6f85; }
+    .ring-accent { stroke: #8839ef; } .ring-yellow { stroke: #df8e1d; } .ring-green { stroke: #40a02b; } .ring-red { stroke: #d20f39; }
+    .lbl-accent { fill: #8839ef; } .lbl-yellow { fill: #df8e1d; } .lbl-green { fill: #40a02b; } .lbl-red { fill: #d20f39; }
+    @media (prefers-color-scheme: dark) {
+    text { fill: #cdd6f4; }
+    .bg { fill: #1e1e2e; }
+    .panel { fill: #181825; stroke: #585b70; }
+    .card { fill: #313244; stroke: #585b70; }
+    .s, .lbl { fill: #a6adc8; }
+    .lbl { stroke: #1e1e2e; }
+    .edge { stroke: #a6adc8; }
+    .edge.accent { stroke: #cba6f7; } .edge.yellow { stroke: #f9e2af; } .edge.green { stroke: #a6e3a1; }
+    .life { stroke: #585b70; }
+    .accentfill { fill: #cba6f7; } .yellowfill { fill: #f9e2af; } .greenfill { fill: #a6e3a1; } .subfill { fill: #a6adc8; }
+    .ring-accent { stroke: #cba6f7; } .ring-yellow { stroke: #f9e2af; } .ring-green { stroke: #a6e3a1; } .ring-red { stroke: #f38ba8; }
+    .lbl-accent { fill: #cba6f7; } .lbl-yellow { fill: #f9e2af; } .lbl-green { fill: #a6e3a1; } .lbl-red { fill: #f38ba8; }
+    }
+  </style>
+
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="subfill"/></marker>
+    <marker id="aa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="accentfill"/></marker>
+    <marker id="ay" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="yellowfill"/></marker>
+    <marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="greenfill"/></marker>
+  </defs>
+  <rect class="bg" x="0" y="0" width="1000" height="640" rx="18"/>
+  <text class="title " x="30" y="40" text-anchor="start">Your turn: a payment step</text>
+  <rect class="card " x="56.0" y="58" width="148" height="50" rx="12"/>
+  <text class="h " x="130.0" y="80" text-anchor="middle">Agent</text>
+  <text class="s " x="130.0" y="98" text-anchor="middle">asked to buy</text>
+  <line class="life" x1="130.0" y1="108" x2="130.0" y2="610"/>
+  <rect class="card ring-accent" x="302.66666666666663" y="58" width="148" height="50" rx="12"/>
+  <text class="h " x="376.66666666666663" y="80" text-anchor="middle">Daemon</text>
+  <text class="s " x="376.66666666666663" y="98" text-anchor="middle">gate</text>
+  <line class="life" x1="376.66666666666663" y1="108" x2="376.66666666666663" y2="610"/>
+  <rect class="card " x="549.3333333333333" y="58" width="148" height="50" rx="12"/>
+  <text class="h " x="623.3333333333333" y="80" text-anchor="middle">Browser</text>
+  <text class="s " x="623.3333333333333" y="98" text-anchor="middle">extension + page</text>
+  <line class="life" x1="623.3333333333333" y1="108" x2="623.3333333333333" y2="610"/>
+  <rect class="card ring-yellow" x="796.0" y="58" width="148" height="50" rx="12"/>
+  <text class="h " x="870.0" y="80" text-anchor="middle">You</text>
+  <text class="s " x="870.0" y="98" text-anchor="middle">at your desk</text>
+  <line class="life" x1="870.0" y1="108" x2="870.0" y2="610"/>
+  <path class="edge  " d="M134.0 140 L372.66666666666663 140" marker-end="url(#a)"/>
+  <text class="lbl" x="253.33333333333331" y="132" text-anchor="middle" font-weight="650">act: type into &quot;Card number&quot;</text>
+  <path class="edge accent " d="M380.66666666666663 180 L619.3333333333333 180" marker-end="url(#aa)"/>
+  <text class="lbl lbl-accent" x="499.99999999999994" y="172" text-anchor="middle" font-weight="650">page.act</text>
+  <rect class="card ring-yellow" x="505.28333333333325" y="204" width="236.09999999999997" height="28" rx="10"/>
+  <text class="t " x="623.3333333333333" y="223" text-anchor="middle">risk = hand-off: a card field</text>
+  <path class="edge yellow " d="M619.3333333333333 260 L380.66666666666663 260" marker-end="url(#ay)"/>
+  <text class="lbl lbl-yellow" x="499.99999999999994" y="252" text-anchor="middle" font-weight="650">hub.gate (the step is NOT run)</text>
+  <path class="edge yellow " d="M380.66666666666663 300 L866.0 300" marker-end="url(#ay)"/>
+  <text class="lbl lbl-yellow" x="623.3333333333333" y="292" text-anchor="middle" font-weight="650">notification at once: “claude needs you”</text>
+  <text class="lbl" x="623.3333333333333" y="315" text-anchor="middle">Show me · Done · I won’t</text>
+  <path class="edge yellow " d="M380.66666666666663 354 L619.3333333333333 354" marker-end="url(#ay)"/>
+  <text class="lbl lbl-yellow" x="499.99999999999994" y="346" text-anchor="middle" font-weight="650">show the Your turn card, bring the tab forward</text>
+  <path class="edge green " d="M866.0 394 L627.3333333333333 394" marker-end="url(#ag)"/>
+  <text class="lbl lbl-green" x="746.6666666666666" y="386" text-anchor="middle" font-weight="650">you type the card and pay yourself</text>
+  <path class="edge green " d="M866.0 434 L627.3333333333333 434" marker-end="url(#ag)"/>
+  <text class="lbl lbl-green" x="746.6666666666666" y="426" text-anchor="middle" font-weight="650">Done (card, panel or notification)</text>
+  <path class="edge green dash" d="M619.3333333333333 474 L380.66666666666663 474" marker-end="url(#ag)"/>
+  <text class="lbl lbl-green" x="499.99999999999994" y="466" text-anchor="middle" font-weight="650">hub.resolve: done</text>
+  <path class="edge green dash" d="M372.66666666666663 514 L134.0 514" marker-end="url(#ag)"/>
+  <text class="lbl lbl-green" x="253.33333333333331" y="506" text-anchor="middle" font-weight="650">[handoff-done] the user did this step</text>
+  <rect class="card " x="60.0" y="542" width="880.0" height="28" rx="10"/>
+  <text class="t " x="500.0" y="561" text-anchor="middle">No answer: a reminder at 5 minutes, “timeout” at 15 · I won’t: “declined”, the agent stops and asks</text>
+  <rect class="card " x="60.0" y="582" width="880.0" height="28" rx="10"/>
+  <text class="t " x="500.0" y="601" text-anchor="middle">Send · publish · delete: the same path, but Allow lets the agent click it itself</text>
+</svg>

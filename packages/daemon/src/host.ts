@@ -3,11 +3,16 @@
 // unix socket). Frames too big for the browser's 1 MB limit are cut into parts.
 
 import { createLineReader, splitFrame } from '../../protocol/src/framing.ts';
+import { readlinkSync } from 'node:fs';
 import { connectOrStart } from './client.ts';
 
 export async function runHost() {
   const sock = await connectOrStart();
   const out = process.stdout;
+  // Tell the daemon which program started us: Zen calls itself "Firefox" to extensions.
+  let exe = '';
+  try { exe = readlinkSync(`/proc/${process.ppid}/exe`); } catch { /* not Linux */ }
+  sock.write(JSON.stringify({ t: 'meta', exe }) + '\n');
 
   const writeNative = (json: string) => {
     const body = Buffer.from(json, 'utf8');
