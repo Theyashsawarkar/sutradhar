@@ -10,7 +10,6 @@ export const paths = {
   socket: env.SUTRADHAR_SOCKET || join(runtime, 'sutradhar', 'sock'),
   config: join(env.XDG_CONFIG_HOME || join(home, '.config'), 'sutradhar'),
   state: join(env.XDG_STATE_HOME || join(home, '.local', 'state'), 'sutradhar'),
-  data: join(env.XDG_DATA_HOME || join(home, '.local', 'share'), 'sutradhar'),
   downloads: join(home, 'Downloads', 'sutradhar'),
 };
 

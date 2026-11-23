@@ -2,7 +2,7 @@
 // systemd user service, the logo for notifications. `doctor` checks them.
 
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { paths } from './paths.ts';
@@ -61,9 +61,6 @@ export function install(opts: { service?: boolean } = {}) {
     writeFileSync(join(dir, `${HOST_NAME}.json`), JSON.stringify(gecko, null, 2));
     out.push(`${name}: ${join(dir, HOST_NAME + '.json')}`);
   }
-  mkdirSync(paths.data, { recursive: true });
-  const logo = join(r, 'assets', 'logo.svg');
-  if (existsSync(logo)) copyFileSync(logo, join(paths.data, 'logo.svg'));
   if (opts.service !== false) {
     const unitDir = join(H, '.config/systemd/user');
     mkdirSync(unitDir, { recursive: true });

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1 (2026-11-23)
+
+- Notifications use the logo from the install itself; `sutradhar install` no
+  longer writes into `~/.local/share/sutradhar`, which is where kosha keeps the
+  package.
+
 ## 0.1.0 (2026-11-23)
 
 First release.

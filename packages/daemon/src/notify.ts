@@ -5,12 +5,12 @@ import { spawn, execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadConfig } from './config.ts';
-import { paths } from './paths.ts';
+import { root } from './install.ts';
 
 export interface Shown { close: () => void; id?: number }
 
 const icon = () => {
-  const p = join(paths.data, 'logo.svg');
+  const p = join(root(), 'assets', 'logo.svg');
   return existsSync(p) ? p : 'dialog-information';
 };
 
