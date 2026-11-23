@@ -24,6 +24,15 @@ export interface Prepared {
 const raf = () => new Promise<void>((r) => { const t = setTimeout(r, 34); requestAnimationFrame(() => { clearTimeout(t); r(); }); });
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+/**
+ * Lets the page's editor catch up with what was just typed. Rich editors
+ * (ProseMirror, Draft.js, Lexical) read DOM changes a moment later; a key they
+ * handle themselves (Enter) before that splits at a stale position and drops
+ * the text. Timers are throttled in background tabs, message events are not.
+ */
+const yieldTask = () => new Promise<void>((r) => { const ch = new MessageChannel(); ch.port1.onmessage = () => r(); ch.port2.postMessage(0); });
+const catchUp = async () => { for (let i = 0; i < 6; i++) await yieldTask(); if (!document.hidden) await sleep(30); };
+
 export function target(t: any): Element {
   const el = locate(t);
   if (!el) throw new Error(`no element matches ${JSON.stringify(t)}; take a snapshot or use find`);
@@ -161,14 +170,34 @@ function focusable(el: Element): HTMLElement | null {
 }
 
 // ------------------------------------------------------------------ typing
+/**
+ * A caret inside the editor's text, at its start or end: inside the first or
+ * last paragraph, never between blocks (Firefox would type a loose text node
+ * there, which ProseMirror-like editors drop at the next Enter).
+ */
+function caretInside(el: Element, atEnd: boolean) {
+  let node: Node = el;
+  for (;;) {
+    const kids = Array.from(node.childNodes).filter((n) => n.nodeType === Node.TEXT_NODE ? (n.textContent ?? '').length > 0 || n.parentNode === el : n.nodeType === Node.ELEMENT_NODE);
+    if (!kids.length) break;
+    const next = atEnd ? kids[kids.length - 1] : kids[0];
+    if (next.nodeType === Node.TEXT_NODE) { node = next; break; }
+    if ((next as Element).localName === 'br' || (next as Element).getAttribute?.('contenteditable') === 'false') break;
+    node = next;
+  }
+  const range = document.createRange();
+  if (node.nodeType === Node.TEXT_NODE) range.setStart(node, atEnd ? (node.textContent ?? '').length : 0);
+  else range.setStart(node, atEnd ? Array.from(node.childNodes).filter((n) => (n as Element).localName !== 'br').length : 0);
+  range.collapse(true);
+  const sel = getSelection();
+  sel?.removeAllRanges(); sel?.addRange(range);
+}
+
 export function focusStart(el: Element) {
   const h = el as HTMLInputElement;
   h.focus({ preventScroll: true } as FocusOptions);
   if (el.localName === 'input' || el.localName === 'textarea') { try { h.setSelectionRange(0, 0); } catch { /* */ } }
-  else if (h.isContentEditable) {
-    const sel = getSelection(); const range = document.createRange();
-    range.selectNodeContents(el); range.collapse(true); sel?.removeAllRanges(); sel?.addRange(range);
-  }
+  else if (h.isContentEditable) caretInside(el, false);
 }
 
 export function focusEnd(el: Element) {
@@ -176,10 +205,7 @@ export function focusEnd(el: Element) {
   h.focus({ preventScroll: true } as FocusOptions);
   if (el.localName === 'input' || el.localName === 'textarea') {
     try { const n = h.value.length; h.setSelectionRange(n, n); } catch { /* email/number inputs */ }
-  } else if (h.isContentEditable) {
-    const sel = getSelection(); const range = document.createRange();
-    range.selectNodeContents(el); range.collapse(false); sel?.removeAllRanges(); sel?.addRange(range);
-  }
+  } else if (h.isContentEditable) caretInside(el, true);
 }
 
 export function selectAllIn(el: Element) {
@@ -205,8 +231,16 @@ export function synthClear(el: Element) {
 
 export async function synthType(el: Element, text: string, delay = 0, at: 'start' | 'end' = 'end') {
   if (at === 'start') focusStart(el); else focusEnd(el);
+  const rich = (el as HTMLElement).isContentEditable;
+  let sinceYield = 0;
   for (const ch of text) {
-    if (ch === '\n') { synthKey(el, 'Enter'); continue; }
+    if (ch === '\n') {
+      if (rich) await catchUp();
+      synthKey(el, 'Enter');
+      if (rich) await catchUp();
+      continue;
+    }
+    if (rich && ++sinceYield >= 40) { sinceYield = 0; await yieldTask(); }
     key(el, 'keydown', ch); key(el, 'keypress', ch);
     // execCommand inserts like real typing: beforeinput/input fire and frameworks see it.
     if (!document.execCommand('insertText', false, ch)) {

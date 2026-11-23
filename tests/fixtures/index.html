@@ -29,6 +29,8 @@
     <label class="fake-check"><input type="checkbox" id="hidden-check"><span>Styled checkbox</span></label>
     <textarea id="bio" aria-label="Bio"></textarea>
     <div contenteditable="true" id="editor" aria-label="Editor" style="border:1px solid #ccc;min-height:30px"></div>
+    <div contenteditable="true" id="model-editor" aria-label="Model editor" style="border:1px solid #ccc;min-height:30px"></div>
+    <span id="model-result"></span>
     <button type="submit">Save profile</button>
   </form>
   <p id="submitted"></p>
@@ -97,6 +99,14 @@
   $('file').onchange = async () => { const f = $('file').files[0]; $('file-result').textContent = f ? `${f.name} ${f.size} ${(await f.text()).trim()}` : 'none'; };
   // Like LinkedIn's "add media": a button that makes a file input and clicks it.
   $('photo').onclick = () => { const i = document.createElement('input'); i.type = 'file'; i.onchange = () => { $('photo-result').textContent = 'photo ' + i.files[0].name; }; i.click(); };
+  // Like ProseMirror: the editor keeps its own model, read from DOM changes by a
+  // MutationObserver, and re-renders from the model when it handles Enter itself.
+  const me = $('model-editor'); let model = [''];
+  const render = () => { me.innerHTML = model.map((p) => `<p>${p.replace(/</g, '&lt;') || '<br>'}</p>`).join(''); $('model-result').textContent = 'model:' + model.join('|'); };
+  new MutationObserver(() => { const ps = [...me.querySelectorAll('p')]; if (ps.length) model = ps.map((p) => p.textContent); else model = [me.textContent]; $('model-result').textContent = 'model:' + model.join('|'); })
+    .observe(me, { subtree: true, childList: true, characterData: true });
+  me.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); model.push(''); render(); const s = getSelection(); const last = me.lastChild; s.removeAllRanges(); const r = document.createRange(); r.selectNodeContents(last); r.collapse(false); s.addRange(r); } });
+  render();
   $('open-modal').onclick = () => $('modal').showModal();
   $('in-modal').onclick = () => { $('modal-result').textContent = 'modal clicked'; $('modal').close(); };
   $('hoverme').addEventListener('mouseover', () => { $('hover-result').textContent = 'hovered'; });

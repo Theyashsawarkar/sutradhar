@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.8 (2026-11-23)
+
+- **Rich editors keep every line.** The caret for typing went *between* the
+  editor's paragraphs (selecting the whole editor and collapsing it), so on
+  Firefox and Zen the first line became a loose text node that
+  ProseMirror-like editors (LinkedIn's composer) dropped at the next Enter.
+  The caret now goes inside the first or last paragraph's text, and typing
+  lets the editor catch up before each Enter. Found when a LinkedIn post lost
+  its opening line; covered by a new test editor that keeps its own model.
+
 ## 0.1.7 (2026-11-23)
 
 - **The sutra tab group:** sutradhar works only in its own tab group, "sutra",

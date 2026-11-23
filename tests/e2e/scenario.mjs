@@ -64,6 +64,12 @@ export async function scenario(t, { launch, engine }) {
     assert.match(p, /saved Asha Rao asha@example.com np true true line one rich text/);
   });
 
+  await only(t, 'rich editors keep every line (ProseMirror-like model)', async () => {
+    const r = await act([{ do: 'type', selector: '#model-editor', value: 'first line\nsecond line\nthird' }]);
+    assert.doesNotMatch(r, /FAILED/, r);
+    await until(async () => /model:first line\|second line\|third/.test(await page()), 5000, 'all three lines in the model');
+  });
+
   await only(t, 'div buttons, shadow DOM and cross-origin frame clicks', async () => {
     let r = await act([{ do: 'click', text: 'Fancy div button' }, { do: 'click', text: 'Closed shadow button' }]);
     assert.doesNotMatch(r, /FAILED/, r);
