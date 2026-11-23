@@ -55,6 +55,8 @@ async function tabFor(s: Session, tab?: number, open = true): Promise<{ b: Brows
     if (!s.tabs.has(tab)) {
       const info = await b.client.tabs.get.query({ tab }).catch(() => null);
       if (!info) throw new TRPCError({ code: 'NOT_FOUND', message: `tab ${tab} doesn't exist; call tabs` });
+      // The extension remembers this session's tabs across a daemon restart: take them back.
+      if (info.agent === s.id) { s.tabs.add(tab); s.tab = tab; return { b, tab }; }
       if (info.agent && info.agent !== s.id) throw new TRPCError({ code: 'FORBIDDEN', message: `tab ${tab} belongs to another agent (${info.agent})` });
       throw new TRPCError({ code: 'FORBIDDEN', message: `tab ${tab} is the user's, not yours. Open your own with tab_open, or ask to borrow it with tab_attach.` });
     }

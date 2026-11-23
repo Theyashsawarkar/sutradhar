@@ -131,6 +131,11 @@ function handoffTitle(reason: string, step: string) {
 export async function osAct(browserId: string, tab: number, a: { action: string; x?: number; y?: number; x2?: number; y2?: number; button?: string; count?: number; keys?: string; text?: string; direction?: 'up' | 'down'; relative?: 'viewport' | 'window' | 'screen' }): Promise<string> {
   const b = D.browsers.get(browserId);
   if (!b) throw new TRPCError({ code: 'NOT_FOUND', message: `browser ${browserId} is not connected` });
+  // Keys for the browser's own dialog (a file picker it opened) go to that dialog.
+  if ((a.action === 'key' || a.action === 'type') && (await os.browserDialogFocused(b.hello.kind).catch(() => null))) {
+    if (a.action === 'key') { await os.keys(a.keys ?? ''); return `pressed ${a.keys} in the browser's dialog`; }
+    await os.typeText(a.text ?? ''); return `typed ${a.text?.length ?? 0} characters into the browser's dialog`;
+  }
   const g: PageGeometry | null = await b.client.page.geometry.query({ tab }).catch(() => null);
   const title = g?.tabTitle ?? '';
   const w = await os.focusWindow(b.hello.kind, title);

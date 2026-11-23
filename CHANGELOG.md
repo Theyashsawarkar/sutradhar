@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.5 (2026-11-23)
+
+- Real keyboard into the browser's own dialogs: when a file picker (or print
+  or permission dialog) the browser opened has focus, `os_input` keys and
+  typing go to it instead of refocusing the page. Found while attaching
+  images to a LinkedIn post.
+- After a daemon restart, an agent session gets back the tabs the extension
+  still marks as its own.
+
 ## 0.1.4 (2026-11-23)
 
 - Background tabs: waiting for an element to settle no longer depends on

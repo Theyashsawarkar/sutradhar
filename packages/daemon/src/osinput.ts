@@ -53,6 +53,27 @@ export async function findWindow(kind: string, title: string): Promise<Node> {
   return pool.find((w) => w.focused) ?? pool.find((w) => w.visible) ?? pool[0];
 }
 
+/**
+ * The focused window, if it is one of the browser's own dialogs (a file
+ * picker, a print or permission dialog): keys must go there, not to the page.
+ */
+export async function browserDialogFocused(kind: string): Promise<Node | null> {
+  const tree = JSON.parse(await sway('-t', 'get_tree')) as Node;
+  let found: Node | null = null;
+  const walk = (n: Node) => {
+    if (n.focused && (n.app_id || n.window_properties)) found = n;
+    for (const c of [...(n.nodes ?? []), ...(n.floating_nodes ?? [])]) walk(c);
+  };
+  walk(tree);
+  if (!found) return null;
+  const f = found as Node;
+  const app = `${f.app_id ?? ''} ${f.window_properties?.class ?? ''}`;
+  const engine = APP_IDS[kind] ?? /./;
+  const isPortal = /portal|zenity|kdialog|gtk-file|file-chooser/i.test(app);
+  const ownTitle = engine.test(f.name ?? '') && !engine.test(app);
+  return isPortal || ownTitle ? f : null;
+}
+
 export async function focusWindow(kind: string, title: string) {
   const w = await findWindow(kind, title);
   if (!w.focused) await sway(`[con_id=${w.id}] focus`);
