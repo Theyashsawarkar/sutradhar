@@ -61,12 +61,14 @@ const manifests = {
   },
   firefox: {
     manifest_version: 2, ...common,
-    browser_specific_settings: { gecko: { id: 'sutradhar@theyashsawarkar.github.io', strict_min_version: '128.0',
+    browser_specific_settings: { gecko: { id: 'sutradhar@theyashsawarkar.github.io', strict_min_version: '140.0',
+      // Mozilla asks every new add-on what it collects: nothing leaves this machine.
+      data_collection_permissions: { required: ['none'] },
       // Self-distributed updates: Firefox/Zen check this file and install newer releases.
       update_url: 'https://raw.githubusercontent.com/Theyashsawarkar/sutradhar/main/updates.json' } },
     browser_action: { default_popup: 'panel.html', default_title: 'Sutradhar', default_icon: common.icons },
     background: { scripts: ['background.js'], persistent: true },
-    permissions: [...perms, 'tabGroups', '<all_urls>'],
+    permissions: [...perms, 'tabGroups', 'webRequestBlocking', '<all_urls>'],
     content_scripts: contentScripts(false),
   },
 };
@@ -85,8 +87,14 @@ for (const [target, manifest] of Object.entries(manifests)) {
   writeFileSync(join(out, 'manifest.json'), JSON.stringify(manifest, null, 2));
 }
 
+// The build for addons.mozilla.org: Mozilla delivers updates there, so no update_url.
+const amoManifest = structuredClone(manifests.firefox);
+delete amoManifest.browser_specific_settings.gecko.update_url;
+cpSync(join(dist, 'firefox'), join(dist, 'firefox-amo'), { recursive: true });
+writeFileSync(join(dist, 'firefox-amo', 'manifest.json'), JSON.stringify(amoManifest, null, 2));
+
 // Zip for Firefox/Zen (python's zipfile: no zip binary needed).
-execFileSync('python3', ['-I', '-c', `
+const zip = (src, dst) => execFileSync('python3', ['-I', '-c', `
 import os, sys, zipfile
 src, dst = sys.argv[1], sys.argv[2]
 with zipfile.ZipFile(dst, 'w', zipfile.ZIP_DEFLATED) as z:
@@ -94,7 +102,9 @@ with zipfile.ZipFile(dst, 'w', zipfile.ZIP_DEFLATED) as z:
         for f in sorted(files):
             p = os.path.join(base, f)
             z.write(p, os.path.relpath(p, src))
-`, join(dist, 'firefox'), join(dist, 'sutradhar-firefox.xpi')]);
+`, src, dst]);
+zip(join(dist, 'firefox'), join(dist, 'sutradhar-firefox.xpi'));
+zip(join(dist, 'firefox-amo'), join(dist, 'sutradhar-amo.xpi'));
 
 // The update manifest Firefox/Zen read (committed at the repo root; points at the release's .xpi).
 // Only for a release (`pnpm release-manifest`): an ordinary build, like kosha's, leaves the checkout clean.

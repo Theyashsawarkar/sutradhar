@@ -13,8 +13,10 @@ import { paths } from './paths.ts';
 import { D, log, type Conn } from './state.ts';
 import { t } from './trpc.ts';
 import { settleAll } from './gates.ts';
-import { resume, stopAll } from './control.ts';
+import { handback, pause, resume, stopAll, takeover } from './control.ts';
 import { focusWindow } from './osinput.ts';
+import { recorder, startRecording, stopRecording, workingTab } from './record.ts';
+import { z } from 'zod';
 
 /** For the `sutradhar` CLI (status, stop, resume). */
 const adminRouter = t.router({
@@ -23,9 +25,21 @@ const adminRouter = t.router({
     browsers: [...D.browsers.values()].map((b) => ({ id: b.id, name: b.hello.name, version: b.hello.version, engine: b.hello.engine, extension: b.hello.extension })),
     sessions: [...D.sessions.values()].map((s) => ({ id: s.id, browser: s.browserId, tabs: [...s.tabs], stopped: s.stopped })),
     gates: [...D.gates.values()].map(({ resolve: _r, ...g }) => g),
+    paused: takeover.paused,
+    recording: !!recorder.current,
   })),
   stop: t.procedure.mutation(() => stopAll('sutradhar stop')),
+  pause: t.procedure.mutation(() => pause('sutradhar pause')),
+  handback: t.procedure.mutation(() => handback('sutradhar handback')),
   resume: t.procedure.mutation(() => resume()),
+  record: t.procedure.input(z.object({ action: z.enum(['start', 'stop', 'status']), format: z.enum(['gif', 'webm']).optional() })).mutation(async ({ input }) => {
+    if (input.action === 'status') return recorder.current ? `recording tab ${recorder.current.tab}, ${recorder.current.frames} frames` : 'not recording';
+    if (input.action === 'stop') return (await stopRecording()).path;
+    const w = await workingTab();
+    if (!w) throw new Error('sutradhar has no tab to record');
+    startRecording(w.b, w.tab, input.format ?? 'gif');
+    return `recording tab ${w.tab}`;
+  }),
   /** Brings the tab sutradhar is working in to the front, so the user can watch. */
   watch: t.procedure.mutation(async () => {
     const recent = [...D.sessions.values()].filter((s) => s.tab !== undefined && s.browserId).sort((a, b) => b.started - a.started)[0];
@@ -78,7 +92,6 @@ function serve(sock: Socket) {
         s.detachedAt = Date.now();
       } else if (s) {
         for (const ac of s.calls) ac.abort();
-        if (s.recording) clearInterval(s.recording.timer);
         D.sessions.delete(conn.sessionId);
         log({ session: conn.sessionId, event: 'session-end' });
       }
@@ -103,7 +116,6 @@ export async function runDaemon() {
   setInterval(() => {
     for (const s of [...D.sessions.values()]) {
       if (s.detachedAt && Date.now() - s.detachedAt > 30 * 60000) {
-        if (s.recording) clearInterval(s.recording.timer);
         D.sessions.delete(s.id);
         log({ session: s.id, event: 'session-end' });
       }

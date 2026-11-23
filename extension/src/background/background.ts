@@ -7,6 +7,7 @@ import { createJoiner, type Wire } from '../../../packages/protocol/src/framing.
 import type { HubRouter } from '../../../packages/daemon/src/hub-router.ts';
 import type { Hello } from '../../../packages/protocol/src/schemas.ts';
 import { browserRouter, group } from './router.ts';
+import { rules } from './netrules.ts';
 import { ext, isGecko, S } from './state.ts';
 
 const HOST = 'sutradhar';
@@ -132,7 +133,7 @@ ext.webNavigation.onCreatedNavigationTarget?.addListener(async (d: { sourceTabId
   }
 });
 ext.tabs.onRemoved.addListener((tabId: number) => {
-  S.agentTabs.delete(tabId); S.overlays.delete(tabId); S.net.delete(tabId);
+  S.agentTabs.delete(tabId); S.overlays.delete(tabId); S.net.delete(tabId); rules.delete(tabId);
   event('tab-removed', tabId, {});
 });
 ext.downloads?.onChanged?.addListener((d: any) => {
@@ -180,6 +181,12 @@ ext.runtime.onMessage.addListener((msg: any, sender: any, reply: (r: unknown) =>
       case 'stop':
         if (!S.hub) throw new Error('not connected');
         return S.hub.stop.mutate();
+      case 'record':
+        return S.hub?.record.mutate();
+      case 'pause':
+        return S.hub?.pause.mutate();
+      case 'handback':
+        return S.hub?.handback.mutate();
       case 'resume':
         return S.hub?.resume.mutate();
       case 'resolve':

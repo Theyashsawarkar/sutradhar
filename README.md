@@ -238,6 +238,13 @@ so a page can't press **Done** or **Allow** for you.
   speed with no pointer.
 - **The sutra group stays**: sutradhar's last tab is never closed, it's parked
   on a small "sutradhar is idle" page and reused for the next task.
+- **Take over any time**: **Pause** on the pill (or in the panel, or
+  `sutradhar pause`) and the border turns yellow: "Paused · you have
+  control". sutradhar stops between steps (agents' calls wait, they don't
+  fail); do what you like, then **Hand back** and it carries on.
+- **Replays**: "● Record a replay" in the panel (or `sutradhar record start` /
+  `stop`) films sutradhar's tab, pointer and captions included, as a GIF or
+  WebM in `~/Downloads/sutradhar/`; a notification opens it.
 - **Watch it**: the toolbar panel shows what it's doing right now ("▸ Clicking
   “Post” on linkedin.com") and a **Watch it work** button; `sutradhar watch`
   does the same from a terminal.
@@ -270,7 +277,9 @@ so a page can't press **Done** or **Allow** for you.
 | `window` | list, new (private) window, resize, maximize |
 | `clipboard` | set; read (you approve) |
 | `bookmarks`, `history`, `cookies` | browser data (cookies: you approve) |
-| `record` | GIF or WebM of a tab |
+| `record` | GIF or WebM of a tab, pointer and captions included |
+| `site_notes` | what earlier runs learned on a site (shown by `navigate`); add a recipe after a task |
+| `network_rules` | testing: block, redirect or fake requests in your tab |
 | `handoff` | give a step to you and wait |
 | `os_input` | real mouse and keyboard on the browser window (you approve) |
 | `log` | the session's recent actions |
@@ -287,6 +296,9 @@ sutradhar status              what's connected: browsers, agent sessions, waitin
 sutradhar stop                stop every agent now
 sutradhar resume              let stopped agents carry on (from a terminal)
 sutradhar watch               bring the tab sutradhar is working in to the front
+sutradhar pause | handback    take over (agents wait between steps) / give control back
+sutradhar record start|stop [--webm]
+                              film sutradhar's tab (pointer and captions included)
 sutradhar log [-n N]          recent actions
 sutradhar call TOOL [JSON]    call a tool as an agent would
 sutradhar tools               the tools agents get

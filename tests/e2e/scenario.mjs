@@ -131,6 +131,47 @@ export async function scenario(t, { launch, engine }) {
     assert.match(net, /GET 200 .*data\.json/);
   });
 
+  await only(t, 'network rules: block, mock, clear (testing tools)', async () => {
+    await c.navigate.mutate({ url: site.url + '/' });
+    await c.network_rules.mutate({ action: 'add', rule: { match: '/data.json', type: 'block' } });
+    await act([{ do: 'click', text: 'Load data' }]);
+    await until(async () => /load failed/.test(await page()), 5000, 'blocked request');
+    await c.network_rules.mutate({ action: 'clear' });
+    await c.network_rules.mutate({ action: 'add', rule: { match: '/data.json', type: 'mock', body: '{"items":[7,8,9]}' } });
+    await act([{ do: 'click', text: 'Load data' }]);
+    await until(async () => /items 7,8,9/.test(await page()), 5000, 'mocked response');
+    assert.match(await c.network_rules.mutate({ action: 'list' }), /mock \/data\.json .*1 hit/);
+    await c.network_rules.mutate({ action: 'clear' });
+    await act([{ do: 'click', text: 'Load data' }]);
+    await until(async () => /items 1,2,3/.test(await page()), 5000, 'real response again');
+  });
+
+  await only(t, 'site notes travel with the site', async () => {
+    assert.match(await c.site_notes.mutate({ site: '127.0.0.1', add: 'Fixture: "Load data" fetches /data.json' }), /Load data/);
+    const r = await c.navigate.mutate({ url: site.url + '/page2.html' });
+    assert.match(r, /Notes for 127\.0\.0\.1/);
+    await c.navigate.mutate({ action: 'back' });
+  });
+
+  await only(t, 'pause: steps wait while the user has control', async () => {
+    const { connectRaw } = await import('../../packages/daemon/src/client.ts');
+    const { createPeer } = await import('../../packages/protocol/src/rpc.ts');
+    const sock = await connectRaw();
+    const admin = createPeer({ send: (f) => sock.write(JSON.stringify(f) + '\n'), pathPrefix: 'admin.' });
+    sock.setEncoding('utf8');
+    let buf = '';
+    sock.on('data', (d) => { buf += d; let i; while ((i = buf.indexOf('\n')) >= 0) { admin.handle(JSON.parse(buf.slice(0, i))); buf = buf.slice(i + 1); } });
+    await admin.client.pause.mutate();
+    let done = false;
+    const p = c.act.mutate({ steps: [{ do: 'click', text: 'Add one' }] }).then((r) => { done = true; return r; });
+    await new Promise((r) => setTimeout(r, 1200));
+    assert.equal(done, false, 'the step waited while paused');
+    await admin.client.handback.mutate();
+    const r = await p;
+    assert.doesNotMatch(r, /FAILED/, r);
+    sock.destroy();
+  });
+
   await only(t, 'screenshots', async () => {
     const shot = await c.screenshot.query({});
     assert.ok(shot.image.data.length > 1000);

@@ -7,6 +7,9 @@ import { keyDef, MOD_BITS, parseChord } from './keys.ts';
 declare const chrome: any;
 
 const attached = new Map<number, ReturnType<typeof setTimeout> | null>();
+/** Tabs that need the debugger to stay attached (network rules are on). */
+const kept = new Set<number>();
+export function keep(tabId: number, on: boolean) { if (on) kept.add(tabId); else kept.delete(tabId); }
 const IDLE_MS = 20000;
 
 export const hasCdp = () => typeof chrome !== 'undefined' && !!chrome.debugger && !(globalThis as any).browser?.runtime?.getBrowserInfo;
@@ -26,7 +29,7 @@ async function attach(tabId: number) {
   }
   const t = attached.get(tabId);
   if (t) clearTimeout(t);
-  attached.set(tabId, setTimeout(() => detach(tabId), IDLE_MS));
+  attached.set(tabId, setTimeout(() => { if (!kept.has(tabId)) void detach(tabId); }, IDLE_MS));
 }
 
 export async function detach(tabId: number) {

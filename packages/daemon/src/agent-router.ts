@@ -12,6 +12,9 @@ import { Step } from '../../protocol/src/schemas.ts';
 import { needsApproval } from './config.ts';
 import { openGate } from './gates.ts';
 import { MIME, osAct } from './hub-router.ts';
+import { whileUserHasControl } from './control.ts';
+import { frame, recorder, startRecording, stopRecording } from './record.ts';
+import { addNote, formatNotes, readNotes, siteKey, writeNotes } from './notes.ts';
 import { paths } from './paths.ts';
 import { D, log, readLog, type BrowserConn, type Session } from './state.ts';
 import { agentProc, t, type Ctx } from './trpc.ts';
@@ -79,6 +82,8 @@ async function call<T>(s: Session, tool: string, detail: Record<string, unknown>
   s.calls.add(ac);
   const started = Date.now();
   try {
+    // While the user has taken over, a call waits (it doesn't fail) until they hand back.
+    await whileUserHasControl(ac.signal);
     const r = await fn(ac.signal);
     log({ session: s.id, tool, ...detail, ok: true, ms: Date.now() - started });
     return r;
@@ -189,7 +194,8 @@ export const agentRouter = t.router({
         await b.client.ui.acting.mutate({ tab, session: s.id, on: true }).catch(() => {});
         try {
           const info = await b.client.tabs.navigate.mutate({ tab, url, action: input.action });
-          return `${info.status === 'complete' ? 'loaded' : 'still loading'}: ${info.title} — ${info.url}`;
+          // What earlier runs learned on this site comes with the page.
+          return `${info.status === 'complete' ? 'loaded' : 'still loading'}: ${info.title} — ${info.url}${formatNotes(info.url)}`;
         } finally { await b.client.ui.acting.mutate({ tab, session: s.id, on: false }).catch(() => {}); }
       });
     }),
@@ -215,7 +221,7 @@ export const agentRouter = t.router({
       const s = sessionFor(ctx); const { b, tab } = await tabFor(s, input.tab);
       const img = await call(s, 'screenshot', { tab }, () => b.client.page.screenshot.query({ tab, full: input.full, ref: input.ref, format: input.format ?? 'jpeg', quality: 80 }));
       if (input.save) writeFileSync(input.save, Buffer.from(img.data, 'base64'));
-      if (s.recording?.tab === tab) frame(s, img.data);
+      frame(tab, img.data);
       return { image: img, note: input.save ? `saved to ${input.save}` : undefined };
     }),
 
@@ -234,7 +240,7 @@ Payments, card/bank details, passwords, OTPs, CAPTCHAs and buy/pay/transfer/dele
       const s = sessionFor(ctx); const { b, tab } = await tabFor(s, input.tab);
       const r = await call(s, 'act', { tab, steps: input.steps.map((x) => x.do).join(',') }, (signal) =>
         b.client.page.act.mutate({ tab, session: s.id, why: input.why, steps: input.steps }, { signal }));
-      if (s.recording?.tab === tab) void b.client.page.screenshot.query({ tab, format: 'jpeg', quality: 70 }).then((i) => frame(s, i.data)).catch(() => {});
+      if (recorder.current?.tab === tab) void b.client.page.screenshot.query({ tab, format: 'jpeg', quality: 75, maxWidth: 1280 }).then((i) => frame(tab, i.data)).catch(() => {});
       const lines = r.results.map((x: any, i: number) => `${i + 1}. ${x.do}: ${x.ok ? 'ok' : 'FAILED'}${x.gate ? ` [${x.gate}]` : ''}${x.note ? ' — ' + x.note : ''}${x.error ? ' — ' + x.error : ''}`);
       if (r.results.length < input.steps.length) lines.push(`(${input.steps.length - r.results.length} step(s) not run)`);
       for (const d of r.dialogs ?? []) lines.push(`dialog: ${d.kind} "${d.message}" → ${d.answer}`);
@@ -276,6 +282,17 @@ Payments, card/bank details, passwords, OTPs, CAPTCHAs and buy/pay/transfer/dele
       const s = sessionFor(ctx); const { b, tab } = await tabFor(s, input.tab);
       const list = await b.client.page.network.query({ ...input, tab });
       return list.map((n: any) => `${n.method} ${n.status ?? (n.error ? 'ERR' : '…')} ${n.type} ${n.url}${n.error ? ` (${n.error})` : ''}${n.ms !== undefined ? ` ${n.ms}ms` : ''}`).join('\n') || 'no requests';
+    }),
+
+  network_rules: agentProc.meta({ description: 'Testing a site: block requests, redirect them, or answer them with a made-up response, in your current tab only (never the user\'s). match is a URL substring or /regex/. Rules last until cleared or the tab closes; reload the page to see them apply to its first requests.' })
+    .input(z.object({ ...TabArg, action: z.enum(['list', 'add', 'clear']),
+      rule: z.object({ match: z.string(), type: z.enum(['block', 'redirect', 'mock']), to: z.string().optional().describe('redirect: the new URL'),
+        body: z.string().optional().describe('mock: the response body'), status: z.number().optional().describe('mock: HTTP status (Chrome)'), contentType: z.string().optional() }).optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const s = sessionFor(ctx); const { b, tab } = await tabFor(s, input.tab);
+      if (input.action === 'add' && !input.rule) throw new TRPCError({ code: 'BAD_REQUEST', message: 'add needs a rule' });
+      const list = await call(s, 'network_rules', { tab, action: input.action }, () => b.client.page.netRules.mutate({ tab, add: input.action === 'add' ? [input.rule!] : undefined, clear: input.action === 'clear' }));
+      return list.length ? list.map((r: any) => `${r.id}. ${r.type} ${r.match}${r.to ? ' → ' + r.to : ''}${r.body !== undefined ? ` (body ${r.body.length} chars)` : ''} · ${r.hits} hit(s)`).join('\n') : 'no rules';
     }),
 
   wait_for: agentProc.meta({ description: 'Wait for text, an element (ref/selector), its disappearance, a URL, the network going quiet, or a download.' })
@@ -381,32 +398,13 @@ Payments, card/bank details, passwords, OTPs, CAPTCHAs and buy/pay/transfer/dele
       return JSON.stringify(await b.client.data.cookies.query({ url: input.url }), null, 1);
     }),
 
-  record: agentProc.meta({ description: 'Record what happens in the current tab as a GIF or WebM: start, then stop (returns the file path).' })
+  record: agentProc.meta({ description: 'Record what happens in the current tab (pointer and captions included) as a GIF or WebM: start, then stop (returns the file path; the user gets a notification to open it).' })
     .input(z.object({ action: z.enum(['start', 'stop']), format: z.enum(['gif', 'webm']).optional(), path: z.string().optional(), ...TabArg }))
     .mutation(async ({ ctx, input }) => {
       const s = sessionFor(ctx); const { b, tab } = await tabFor(s, input.tab);
-      if (input.action === 'start') {
-        if (s.recording) clearInterval(s.recording.timer);
-        const dir = mkdtempSync(join(tmpdir(), 'sutradhar-rec-'));
-        const rec = { dir, tab, frames: 0, format: input.format ?? 'gif', timer: setInterval(() => {
-          b.client.page.screenshot.query({ tab, format: 'jpeg', quality: 70, maxWidth: 1000 }).then((i) => frame(s, i.data)).catch(() => {});
-        }, 700) };
-        s.recording = rec;
-        return 'recording';
-      }
-      const rec = s.recording;
-      if (!rec) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'not recording' });
-      clearInterval(rec.timer); s.recording = undefined;
-      if (!rec.frames) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'no frames were captured' });
-      const out = input.path ?? join(paths.downloads, `recording-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.${rec.format}`);
-      mkdirSync(join(out, '..'), { recursive: true });
-      const scale = 'scale=trunc(min(iw\\,1000)/2)*2:-2';
-      const args = rec.format === 'gif'
-        ? ['-y', '-framerate', '2', '-start_number', '1', '-i', join(rec.dir, '%05d.jpg'), '-vf', `${scale},split[a][b];[a]palettegen[p];[b][p]paletteuse`, out]
-        : ['-y', '-framerate', '2', '-start_number', '1', '-i', join(rec.dir, '%05d.jpg'), '-vf', scale, '-c:v', 'libvpx-vp9', '-b:v', '1M', out];
-      await run('ffmpeg', args, { maxBuffer: 10e6 });
-      rmSync(rec.dir, { recursive: true, force: true });
-      return `saved ${out} (${rec.frames} frames)`;
+      if (input.action === 'start') { startRecording(b, tab, input.format ?? 'gif'); return 'recording (two frames a second, and one after every act)'; }
+      try { const r = await stopRecording(input.path); return `saved ${r.path} (${r.frames} frames)`; }
+      catch (e) { throw new TRPCError({ code: 'PRECONDITION_FAILED', message: (e as Error).message }); }
     }),
 
   handoff: agentProc.meta({ description: "Hand a step to the user and wait: logging in, a CAPTCHA, a 2FA code, a payment, anything only they should do. They're notified at once, do it in the tab, press Done; you get done / declined / timeout." })
@@ -434,6 +432,17 @@ Payments, card/bank details, passwords, OTPs, CAPTCHAs and buy/pay/transfer/dele
       return out.join('\n');
     }),
 
+  site_notes: agentProc.meta({ description: "Notes per site from earlier runs: how a flow worked there (which button, which editor, what to avoid). navigate shows them; read them before a task on a site, and add one short note after finishing a flow that took figuring out (steps and control names, no personal data)." })
+    .input(z.object({ site: z.string().optional().describe('Host or URL; defaults to the current tab'), add: z.string().optional().describe('A short recipe to remember'), remove: z.number().optional().describe('Number of a note to delete') }))
+    .mutation(async ({ ctx, input }) => {
+      const s = sessionFor(ctx);
+      let site = input.site;
+      if (!site) { const { b, tab } = await tabFor(s, undefined, false); site = (await b.client.tabs.get.query({ tab })).url; }
+      if (input.add) addNote(site, input.add);
+      if (input.remove) { const n = readNotes(site); n.splice(input.remove - 1, 1); writeNotes(site, n); }
+      return formatNotes(site).trim() || `no notes for ${siteKey(site)} yet`;
+    }),
+
   log: agentProc.meta({ description: "This session's recent actions (or everyone's with all=true)." })
     .input(z.object({ limit: z.number().optional(), all: z.boolean().optional() })).query(({ ctx, input }) => {
       const s = sessionFor(ctx);
@@ -442,10 +451,3 @@ Payments, card/bank details, passwords, OTPs, CAPTCHAs and buy/pay/transfer/dele
 });
 
 export type AgentRouter = typeof agentRouter;
-
-function frame(s: Session, b64: string) {
-  const rec = s.recording;
-  if (!rec) return;
-  rec.frames++;
-  writeFileSync(join(rec.dir, String(rec.frames).padStart(5, '0') + '.jpg'), Buffer.from(b64, 'base64'));
-}

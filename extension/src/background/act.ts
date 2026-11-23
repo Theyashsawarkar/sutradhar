@@ -353,6 +353,8 @@ export async function act(ctx: ActContext, steps: Step[]) {
   await showActing(ctx.tabId, ctx.session, true);
   try {
     for (const step of steps) {
+      // The user took over: wait, between steps, until they hand back (or stop).
+      while (S.paused && !ctx.signal?.aborted && S.stopGen === gen) await sleep(200);
       if (ctx.signal?.aborted || S.stopGen !== gen) { results.push({ do: step.do, ok: false, gate: 'stopped', note: 'stopped by the user' }); break; }
       let r: StepResult;
       try { r = await runStep(ctx, step); } catch (e) { r = { do: step.do, ok: false, error: (e as Error).message }; }
@@ -378,14 +380,14 @@ export async function showActing(tabId: number, session: string, on: boolean) {
   if (cur?.mode === 'waiting') return;
   clearTimeout(idleTimers.get(tabId));
   if (on) {
-    if (cur?.mode === 'acting') return;
-    const st = { mode: 'acting' as const, session };
+    if (cur?.mode === 'acting' || cur?.mode === 'paused') return;
+    const st = S.paused ? { mode: 'paused' as const, session } : { mode: 'acting' as const, session };
     S.overlays.set(tabId, st);
     await content(tabId, 0, 'overlay', st).catch(() => {});
     return;
   }
   idleTimers.set(tabId, setTimeout(() => {
-    if (S.overlays.get(tabId)?.mode !== 'acting') return;
+    if (S.paused || S.overlays.get(tabId)?.mode !== 'acting') return;
     S.overlays.delete(tabId);
     S.activity.delete(tabId);
     void content(tabId, 0, 'overlay', { mode: 'idle' }).catch(() => {});

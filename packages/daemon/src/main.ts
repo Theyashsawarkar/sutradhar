@@ -19,6 +19,9 @@ const HELP = `sutradhar ${VERSION}: lets AI agents use your real browser (Chrome
   sutradhar stop                stop every agent now (they ask before carrying on)
   sutradhar resume              let stopped agents carry on (from a terminal)
   sutradhar watch               bring the tab sutradhar is working in to the front
+  sutradhar pause | handback    take over (agents wait between steps) / give control back
+  sutradhar record start|stop [--webm]
+                                film sutradhar's tab (pointer and captions included)
   sutradhar log [-n N]          recent actions, newest last
   sutradhar call TOOL [JSON]    call a tool as an agent would ("sutradhar tools" lists them)
   sutradhar tools               the tools agents get
@@ -84,6 +87,7 @@ async function main(argv: string[]) {
       for (const b of s.browsers) console.log(`  ${b.id}: ${b.name} ${b.version}, extension ${b.extension}`);
       console.log(`agents: ${s.sessions.length ? '' : 'none'}`);
       for (const x of s.sessions) console.log(`  ${x.id}${x.stopped ? ' (stopped)' : ''}: ${x.browser ?? '-'} tabs ${x.tabs.join(', ') || '-'}`);
+      if (s.paused) console.log('paused: you have control (sutradhar handback)');
       if (s.gates.length) console.log('waiting on you:');
       for (const g of s.gates) console.log(`  ${g.kind} for ${g.session}: ${g.title} (${g.url})`);
       a.done(); return;
@@ -101,6 +105,18 @@ async function main(argv: string[]) {
       const a = await admin();
       if (!a) { console.log('daemon not running'); return; }
       await a.client.resume.mutate(); console.log('agents may carry on'); a.done(); return;
+    }
+    case 'pause': case 'handback': {
+      const a = await admin();
+      if (!a) { console.log('daemon not running'); return; }
+      await (a.client as any)[cmd].mutate();
+      console.log(cmd === 'pause' ? 'paused: you have control (sutradhar handback gives it back)' : 'handed back: sutradhar carries on'); a.done(); return;
+    }
+    case 'record': {
+      const a = await admin();
+      if (!a) { console.log('daemon not running'); return; }
+      const action = (rest[0] ?? 'status') as 'start' | 'stop' | 'status';
+      console.log(await a.client.record.mutate({ action, format: rest.includes('--webm') ? 'webm' : 'gif' })); a.done(); return;
     }
     case 'watch': {
       const a = await admin();

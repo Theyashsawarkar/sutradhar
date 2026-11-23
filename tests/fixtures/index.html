@@ -60,6 +60,7 @@
     <input type="file" id="file" multiple aria-label="Attach file">
     <span id="file-result"></span>
     <button id="photo" type="button">Attach photo</button> <span id="photo-result">no photo</span>
+    <button id="load" type="button">Load data</button> <span id="load-result">not loaded</span>
   </section>
 
   <section aria-label="Shadow">
@@ -107,6 +108,7 @@
     .observe(me, { subtree: true, childList: true, characterData: true });
   me.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); model.push(''); render(); const s = getSelection(); const last = me.lastChild; s.removeAllRanges(); const r = document.createRange(); r.selectNodeContents(last); r.collapse(false); s.addRange(r); } });
   render();
+  $('load').onclick = () => fetch('/data.json?' + Date.now()).then((r) => r.json()).then((j) => { $('load-result').textContent = 'items ' + j.items.join(','); }, () => { $('load-result').textContent = 'load failed'; });
   $('open-modal').onclick = () => $('modal').showModal();
   $('in-modal').onclick = () => { $('modal-result').textContent = 'modal clicked'; $('modal').close(); };
   $('hoverme').addEventListener('mouseover', () => { $('hover-result').textContent = 'hovered'; });

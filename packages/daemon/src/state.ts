@@ -28,7 +28,6 @@ export interface Session {
   /** Set for CLI sessions: they survive between calls (see daemon.ts). */
   key?: string;
   detachedAt?: number;
-  recording?: { dir: string; timer: ReturnType<typeof setInterval>; tab: number; frames: number; format: string };
 }
 
 export type Outcome = 'handoff-done' | 'handoff-declined' | 'approved' | 'denied' | 'timeout' | 'stopped';

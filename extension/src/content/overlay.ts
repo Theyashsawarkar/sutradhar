@@ -10,6 +10,7 @@ const ext: any = (globalThis as any).browser ?? chrome;
 export type OverlayState =
   | { mode: 'idle' }
   | { mode: 'acting'; session: string; label?: string }
+  | { mode: 'paused'; session: string }
   | { mode: 'waiting'; id: string; kind: 'handoff' | 'approve'; session: string; title: string; detail?: string; why?: string; what?: string };
 
 let host: HTMLElement | null = null;
@@ -99,6 +100,7 @@ export function setOverlay(s: OverlayState) {
   r.appendChild(style);
   const wrap = document.createElement('div');
   const color = s.mode === 'acting' ? '#cba6f7' : '#f9e2af';
+  if (s.mode === 'paused') restCursor(0);
   wrap.style.setProperty('--c', color);
   wrap.style.setProperty('--ok', '#a6e3a1');
   const frame = document.createElement('div');
@@ -106,13 +108,16 @@ export function setOverlay(s: OverlayState) {
   wrap.appendChild(frame);
   if (s.mode === 'acting') { const sweep = document.createElement('div'); sweep.className = 'sweep'; wrap.appendChild(sweep); }
   else wrap.classList.add('waiting');
-  if (s.mode === 'acting') {
+  if (s.mode === 'acting' || s.mode === 'paused') {
     const pill = document.createElement('div');
     pill.className = 'pill';
     const dot = document.createElement('span'); dot.className = 'dot';
     // The user sees sutradhar at work, never which agent is behind it.
-    const label = document.createElement('span'); label.textContent = 'sutradhar is working here';
-    pill.append(dot, label, button('Stop', 'stop', () => ext.runtime.sendMessage({ type: 'stop' })));
+    const label = document.createElement('span');
+    label.textContent = s.mode === 'paused' ? 'Paused · you have control' : 'sutradhar is working here';
+    const send = (type: string) => () => ext.runtime.sendMessage({ type });
+    if (s.mode === 'paused') pill.append(dot, label, button('Hand back', 'go', send('handback')), button('Stop', 'stop', send('stop')));
+    else pill.append(dot, label, button('Pause', 'no', send('pause')), button('Stop', 'stop', send('stop')));
     wrap.appendChild(pill);
   } else {
     const card = document.createElement('div');

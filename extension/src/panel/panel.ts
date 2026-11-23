@@ -65,6 +65,12 @@ async function refresh() {
     ul.append(row);
   }
   ($('watch') as HTMLButtonElement).hidden = !working.length;
+  const pb = $('pause') as HTMLButtonElement;
+  pb.hidden = !working.length && !st.paused;
+  pb.textContent = st.paused ? 'Hand back to sutradhar' : 'Pause (take over)';
+  const rb = $('record') as HTMLButtonElement;
+  rb.hidden = !sessions.length && !st.recording;
+  rb.textContent = st.recording ? '■ Stop recording' : '● Record a replay';
   ($('resume') as HTMLButtonElement).hidden = !sessions.some((s: any) => s.stopped);
 
   const log = $('log');
@@ -94,6 +100,8 @@ async function init() {
   }
   $('stop').addEventListener('click', async () => { await ask({ type: 'stop' }).catch(() => {}); refresh(); });
   $('watch').addEventListener('click', async () => { await ask({ type: 'watch' }); });
+  $('record').addEventListener('click', async () => { await ask({ type: 'record' }).catch(() => {}); refresh(); });
+  $('pause').addEventListener('click', async () => { const st = await ask({ type: 'state' }); await ask({ type: st.paused ? 'handback' : 'pause' }); refresh(); });
   $('resume').addEventListener('click', async () => { await ask({ type: 'resume' }); refresh(); });
   await refresh();
   setInterval(refresh, 1500);

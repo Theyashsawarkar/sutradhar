@@ -11,7 +11,8 @@ import { openGate, settle } from './gates.ts';
 import * as os from './osinput.ts';
 import { D, log, readLog } from './state.ts';
 import { browserProc, t } from './trpc.ts';
-import { resume, stopAll } from './control.ts';
+import { handback, pause, resume, stopAll, takeover } from './control.ts';
+import { recorder, startRecording, stopRecording, workingTab } from './record.ts';
 import type { BrowserRouter, PageGeometry } from '../../../extension/src/background/router.ts';
 import type { TRPCClient } from '@trpc/client';
 
@@ -39,6 +40,7 @@ export const hubRouter = t.router({
     D.browsers.set(id, { id, hello: input, client, connectedAt: Date.now(), events: [] });
     log({ browser: id, event: 'connected', name: input.name, version: input.version });
     const cfg = loadConfig();
+    if (takeover.paused) void client.ui.paused.mutate({ paused: true }).catch(() => {});
     return { browserId: id, risk: riskConfig(), osInput: cfg.os_input.enabled, autoRetry: cfg.os_input.auto_retry };
   }),
 
@@ -79,9 +81,20 @@ export const hubRouter = t.router({
   }),
 
   stop: browserProc.mutation(() => stopAll('the stop button in the browser')),
+  pause: browserProc.mutation(() => pause('the pause button in the browser')),
+  record: browserProc.mutation(async () => {
+    if (recorder.current) return { recording: false, path: (await stopRecording()).path };
+    const w = await workingTab();
+    if (!w) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'sutradhar has no tab to record' });
+    startRecording(w.b, w.tab);
+    return { recording: true };
+  }),
+  handback: browserProc.mutation(() => handback('the hand back button in the browser')),
   resume: browserProc.mutation(() => resume()),
 
   state: browserProc.query(() => ({
+    paused: takeover.paused,
+    recording: !!recorder.current,
     sessions: [...D.sessions.values()].map((s) => ({ id: s.id, name: s.name, browser: s.browserId, tabs: [...s.tabs], stopped: s.stopped, started: s.started })),
     gates: [...D.gates.values()].map(({ resolve: _r, ...g }) => g),
     browsers: [...D.browsers.values()].map((b) => ({ id: b.id, name: b.hello.name, version: b.hello.version })),

@@ -5,6 +5,7 @@ import { initTRPC } from '@trpc/server';
 import { z } from 'zod';
 import { Step } from '../../../packages/protocol/src/schemas.ts';
 import { act, showActing } from './act.ts';
+import { rules, setRules } from './netrules.ts';
 import * as cdp from './cdp.ts';
 import { content, ext, frames, isGecko, S, sleep, splitRef, waitLoad, type NetEntry } from './state.ts';
 
@@ -201,6 +202,12 @@ export const browserRouter = t.router({
         if (input.clear) n.list = [];
         return out;
       }),
+    netRules: p.input(z.object({ tab: z.number(), add: z.array(z.object({ match: z.string(), type: z.enum(['block', 'redirect', 'mock']), to: z.string().optional(), body: z.string().optional(), status: z.number().optional(), contentType: z.string().optional() })).optional(), clear: z.boolean().optional() }))
+      .mutation(async ({ input }) => {
+        if (input.clear) return setRules(input.tab, null);
+        if (input.add) return setRules(input.tab, input.add);
+        return rules.get(input.tab) ?? [];
+      }),
     networkIdle: p.input(z.object({ tab: z.number(), idleMs: z.number().optional(), timeout: z.number().optional() })).query(async ({ input }) => {
       const end = Date.now() + (input.timeout ?? 15000);
       let quietSince = Date.now();
@@ -286,6 +293,16 @@ export const browserRouter = t.router({
       for (const tab of S.agentTabs.keys()) for (const f of await frames(tab).catch(() => [])) await content(tab, f.frameId, 'stop').catch(() => {});
       S.overlays.clear();
       if (!isGecko) await cdp.detachAll();
+      return true;
+    }),
+    paused: p.input(z.object({ paused: z.boolean() })).mutation(async ({ input }) => {
+      S.paused = input.paused;
+      for (const [tab, st] of S.overlays) {
+        if (st.mode === 'waiting') continue;
+        const next = input.paused ? { mode: 'paused' as const, session: (st as any).session ?? '' } : { mode: 'acting' as const, session: (st as any).session ?? '' };
+        S.overlays.set(tab, next);
+        await content(tab, 0, 'overlay', next).catch(() => {});
+      }
       return true;
     }),
     config: p.input(z.object({ risk: z.any().optional(), osInput: z.boolean().optional(), autoRetry: z.boolean().optional() })).mutation(({ input }) => {

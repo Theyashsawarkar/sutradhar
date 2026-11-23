@@ -24,6 +24,8 @@ export interface BgState {
   cursors: Map<number, { x: number; y: number }>;
   /** What sutradhar is doing in each tab right now (for the panel). */
   activity: Map<number, { label: string; time: number }>;
+  /** The user took over: steps wait until they hand back. */
+  paused: boolean;
 }
 
 export const S: BgState = {
@@ -40,6 +42,7 @@ export const S: BgState = {
   stopGen: 0,
   cursors: new Map(),
   activity: new Map(),
+  paused: false,
 };
 
 export interface NetEntry { id: string; method: string; url: string; type: string; status?: number; error?: string; start: number; ms?: number }

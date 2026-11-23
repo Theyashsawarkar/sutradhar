@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.1.11 (2026-11-23)
+
+- **Pause / take over:** a Pause button on the "working here" pill, in the
+  panel, and `sutradhar pause`. The border turns yellow ("Paused · you have
+  control"), steps wait between each other and agents' calls wait (they don't
+  fail); **Hand back** (or `sutradhar handback`) lets sutradhar carry on. Stop
+  also ends a pause.
+- **Site recipes:** `site_notes` keeps short notes per site about what worked
+  (`~/.local/state/sutradhar/sites/`); `navigate` shows them, so the next run
+  starts from what the last one learned.
+- **Replays:** one recorder for the agent's `record`, the panel's "Record a
+  replay" and `sutradhar record start|stop`: two frames a second plus one per
+  step, pointer and captions included; a notification opens the file.
+- **Network tools for testing:** `network_rules` blocks, redirects or answers
+  requests with a made-up response in sutradhar's tab only (Chrome through
+  the debugger's Fetch domain, Firefox and Zen through blocking webRequest).
+- **Ready for addons.mozilla.org:** the manifest declares that sutradhar
+  collects no data (`data_collection_permissions`, so Firefox 140+), and the
+  build makes `dist/sutradhar-amo.xpi` without `update_url` (Mozilla delivers
+  updates for listed add-ons). `web-ext lint`: no errors.
+
 ## 0.1.10 (2026-11-23)
 
 - `updates.json` (Firefox/Zen self-updates) is written only by `pnpm
