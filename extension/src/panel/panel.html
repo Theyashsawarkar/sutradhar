@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sutradhar</title>
+<link rel="stylesheet" href="panel.css">
+</head>
+<body>
+<header>
+  <img src="icons/logo.svg" alt="" width="28" height="28">
+  <div><h1>Sutradhar</h1><p id="conn" class="muted">connecting…</p></div>
+  <button id="stop" class="danger" title="Stop every agent">Stop</button>
+</header>
+<section id="gates"></section>
+<section>
+  <h2>Agents</h2>
+  <ul id="sessions" class="list"><li class="muted">none</li></ul>
+  <button id="resume" class="quiet" hidden>Let stopped agents carry on</button>
+</section>
+<section>
+  <h2>This site</h2>
+  <p id="site" class="muted"></p>
+  <label class="row"><span>Send, publish, delete without asking</span><input type="checkbox" id="approve"></label>
+  <label class="row"><span>Run JavaScript without asking</span><input type="checkbox" id="eval"></label>
+</section>
+<section>
+  <h2>Recent</h2>
+  <ol id="log" class="list log"></ol>
+</section>
+<footer>
+  <img src="icons/shloka.svg" alt="" class="shloka" id="shloka">
+</footer>
+<script src="panel.js"></script>
+</body>
+</html>

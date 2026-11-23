@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 330 92" width="330" height="92" role="img" aria-label="Bhagavad Gītā 7.7">
+  <style>
+    .v { font: 600 15px "Noto Serif Devanagari", "Noto Sans Devanagari", serif; fill: #b4befe; }
+    .s { font: 11px system-ui, sans-serif; fill: #7f849c; }
+    @media (prefers-color-scheme: light) { .v { fill: #7287fd; } .s { fill: #8c8fa1; } }
+  </style>
+  <text class="v" x="165" y="24" text-anchor="middle">मत्तः परतरं नान्यत्किञ्चिदस्ति धनञ्जय ।</text>
+  <text class="v" x="165" y="48" text-anchor="middle">मयि सर्वमिदं प्रोतं सूत्रे मणिगणा इव ॥</text>
+  <text class="s" x="165" y="70" text-anchor="middle">All this is strung on me, like pearls on a thread.</text>
+  <text class="s" x="165" y="86" text-anchor="middle">Bhagavad Gītā 7.7</text>
+</svg>

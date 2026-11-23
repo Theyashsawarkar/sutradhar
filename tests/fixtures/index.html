@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Fixture home</title>
+<style>
+  body { font: 14px sans-serif; margin: 20px; }
+  #cover-wrap { position: relative; display: inline-block; }
+  #cover { position: absolute; inset: 0; background: rgba(0,0,0,.3); }
+  .drop { width: 120px; height: 60px; border: 2px dashed #888; display: inline-block; }
+  .fake-check input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .fake-check span { display: inline-block; padding: 4px 8px; border: 1px solid #888; border-radius: 6px; }
+  #tall { height: 2000px; }
+</style></head>
+<body>
+<main>
+  <h1>Fixture home</h1>
+  <p>A page with every hard case. Made-up data only.</p>
+  <nav><a href="/page2.html">Second page</a> <a href="/pay.html">Checkout</a> <a href="/send.html">Compose</a> <a href="/popup-opener.html" target="_blank">New tab</a></nav>
+
+  <section aria-label="Counter">
+    <button id="inc">Add one</button> <output id="count">0</output>
+    <div role="button" tabindex="0" id="divbtn" style="cursor:pointer">Fancy div button</div> <span id="divcount">0</span>
+  </section>
+
+  <form id="form" aria-label="Profile">
+    <label>Full name <input id="name" name="name"></label>
+    <span id="name-state"></span>
+    <label>Email <input id="email" type="email" placeholder="you@example.com"></label>
+    <label>Country <select id="country"><option value="">Pick one</option><option value="in">India</option><option value="np">Nepal</option></select></label>
+    <label><input type="checkbox" id="agree"> I like tests</label>
+    <label class="fake-check"><input type="checkbox" id="hidden-check"><span>Styled checkbox</span></label>
+    <textarea id="bio" aria-label="Bio"></textarea>
+    <div contenteditable="true" id="editor" aria-label="Editor" style="border:1px solid #ccc;min-height:30px"></div>
+    <button type="submit">Save profile</button>
+  </form>
+  <p id="submitted"></p>
+
+  <section aria-label="Dialogs">
+    <button id="alert">Show alert</button>
+    <button id="confirm">Ask yes or no</button>
+    <button id="prompt">Ask prompt</button>
+    <span id="dialog-result"></span>
+  </section>
+
+  <section aria-label="Trust">
+    <button id="trusted">Only real clicks</button> <span id="trusted-result">untouched</span>
+  </section>
+
+  <section aria-label="Covered">
+    <span id="cover-wrap"><button id="covered">Under a cover</button><span id="cover"></span></span>
+  </section>
+
+  <section aria-label="Drag">
+    <div id="dragme" draggable="true" class="drop">Drag me</div>
+    <div id="dropzone" class="drop">Drop here</div>
+    <span id="drop-result"></span>
+  </section>
+
+  <section aria-label="Files">
+    <input type="file" id="file" multiple aria-label="Attach file">
+    <span id="file-result"></span>
+  </section>
+
+  <section aria-label="Shadow">
+    <open-widget></open-widget>
+    <closed-widget></closed-widget>
+    <span id="shadow-result"></span>
+  </section>
+
+  <section aria-label="Frame">
+    <iframe id="frame" title="Other origin" width="300" height="80"></iframe>
+  </section>
+
+  <section aria-label="Hover"><span id="hoverme">Hover target</span> <span id="hover-result"></span></section>
+  <div id="tall"></div>
+  <button id="bottom">At the bottom</button> <span id="bottom-result"></span>
+</main>
+<script>
+  const $ = (id) => document.getElementById(id);
+  let n = 0; $('inc').onclick = () => { $('count').textContent = ++n; };
+  let d = 0; $('divbtn').addEventListener('click', () => { $('divcount').textContent = ++d; });
+  // A "controlled" input: state lives in JS, updated only by input events.
+  let state = ''; $('name').addEventListener('input', (e) => { state = e.target.value; $('name-state').textContent = 'state:' + state; });
+  $('form').onsubmit = (e) => { e.preventDefault(); $('submitted').textContent = `saved ${state} ${$('email').value} ${$('country').value} ${$('agree').checked} ${$('hidden-check').checked} ${$('bio').value} ${$('editor').textContent}`; };
+  $('alert').onclick = () => { alert('Hello'); $('dialog-result').textContent = 'alert done'; };
+  $('confirm').onclick = () => { $('dialog-result').textContent = 'confirm:' + confirm('Sure?'); };
+  $('prompt').onclick = () => { $('dialog-result').textContent = 'prompt:' + prompt('Name?', 'x'); };
+  $('trusted').addEventListener('click', (e) => { $('trusted-result').textContent = e.isTrusted ? 'trusted' : 'synthetic'; });
+  $('covered').onclick = () => { $('covered').textContent = 'clicked under cover'; };
+  $('dragme').addEventListener('dragstart', (e) => e.dataTransfer.setData('text/plain', 'payload'));
+  $('dropzone').addEventListener('dragover', (e) => e.preventDefault());
+  $('dropzone').addEventListener('drop', (e) => { e.preventDefault(); const f = e.dataTransfer.files; $('drop-result').textContent = f.length ? 'dropped file ' + f[0].name : 'dropped ' + e.dataTransfer.getData('text/plain'); });
+  $('file').onchange = async () => { const f = $('file').files[0]; $('file-result').textContent = f ? `${f.name} ${f.size} ${(await f.text()).trim()}` : 'none'; };
+  $('hoverme').addEventListener('mouseover', () => { $('hover-result').textContent = 'hovered'; });
+  $('bottom').onclick = () => { $('bottom-result').textContent = 'bottom clicked'; };
+  customElements.define('open-widget', class extends HTMLElement { constructor() { super(); const r = this.attachShadow({ mode: 'open' }); r.innerHTML = '<button>Open shadow button</button>'; r.querySelector('button').onclick = () => { $('shadow-result').textContent = 'open clicked'; }; } });
+  customElements.define('closed-widget', class extends HTMLElement { constructor() { super(); const r = this.attachShadow({ mode: 'closed' }); r.innerHTML = '<button>Closed shadow button</button>'; r.querySelector('button').onclick = () => { $('shadow-result').textContent = 'closed clicked'; }; } });
+  $('frame').src = `http://127.0.0.1:${location.port === '' ? 80 : Number(location.port) + 1}/frame.html`;
+  console.log('fixture loaded');
+  console.error('fixture error line');
+  fetch('/data.json').then((r) => r.json());
+</script>
+</body></html>

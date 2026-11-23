@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 140" width="640" height="140">
+  <title>sutradhar</title>
+  <defs>
+    <linearGradient id="w" x1="0" y1="0" x2="470" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#b4befe"/><stop offset="1" stop-color="#cba6f7"/>
+    </linearGradient>
+  </defs>
+  <!-- The icon, inlined so the banner is one file. -->
+  <g id="icon" transform="translate(6 6)">
+    <defs>
+    <linearGradient id="ig" x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#b4befe"/><stop offset="1" stop-color="#cba6f7"/>
+    </linearGradient>
+    <radialGradient id="iglow" cx="62" cy="70" r="62" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#b4befe" stop-opacity=".22"/><stop offset="1" stop-color="#b4befe" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="2" y="2" width="124" height="124" rx="30" fill="#1e1e2e" stroke="#b4befe" stroke-opacity=".28" stroke-width="2"/>
+  <rect x="2" y="2" width="124" height="124" rx="30" fill="url(#iglow)"/>
+  <g fill="none" stroke="url(#ig)" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M30 32 H98" stroke-width="8"/>
+    <path d="M64 20 V32" stroke-width="7"/>
+    <path d="M36 32 L54 66 M64 32 L56 64 M92 32 L58 66" stroke-width="3" stroke-opacity=".85"/>
+  </g>
+  <path d="M55 66 V104 L64.5 95 L71 108.5 L78 105.3 L71.6 92 H84 Z" fill="url(#ig)" stroke="#1e1e2e" stroke-width="2.5" stroke-linejoin="round"/>
+  </g>
+  <!-- SUTRADHAR in the Vayu logo's line style, hanging from a control bar by its strings. -->
+  <g transform="translate(168 44)" fill="none" stroke="url(#w)" stroke-linecap="round" stroke-linejoin="round">
+    <g transform="scale(0.78)" stroke-width="6.4">
+      <path transform="translate(0 0)" d="M42 8 C38 2 31 0 22 0 C10 0 3 6 3 13.5 C3 22 12 24 22 26 C32 28 41 30.5 41 39 C41 47 33 52 22 52 C12 52 5 49 1 43"/>
+      <path transform="translate(64 0)" d="M0 0 V34 C0 45 9 52 22 52 C35 52 44 45 44 34 V0"/>
+      <path transform="translate(128 0)" d="M0 0 H44 M22 0 V52"/>
+      <path transform="translate(192 0)" d="M0 52 V0 H25 C36 0 43 6 43 15 C43 24 36 30 25 30 H0 M23 30 L44 52"/>
+      <path transform="translate(256 0)" d="M0 52 L22 0 L44 52 M9 33 H35"/>
+      <path transform="translate(320 0)" d="M0 0 V52 H17 C34 52 44 41 44 26 C44 11 34 0 17 0 H0"/>
+      <path transform="translate(384 0)" d="M0 0 V52 M44 0 V52 M0 26 H44"/>
+      <path transform="translate(448 0)" d="M0 52 L22 0 L44 52 M9 33 H35"/>
+      <path transform="translate(512 0)" d="M0 52 V0 H25 C36 0 43 6 43 15 C43 24 36 30 25 30 H0 M23 30 L44 52"/>
+    </g>
+    <g stroke-width="3.5">
+      <path d="M-4 -22 H448"/>
+      <path d="M17 -22 V-6 M217 -22 V-6 M417 -22 V-6" stroke-width="2" stroke-opacity=".7"/>
+    </g>
+    <circle cx="452" cy="-22" r="5" fill="url(#w)" stroke="none"/>
+  </g>
+</svg>

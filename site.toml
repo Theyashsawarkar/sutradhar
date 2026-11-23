@@ -1,0 +1,11 @@
+# The project website (docs/, GitHub Pages): built by scripts/build-site.py
+name = "sutradhar"
+sanskrit = "सूत्रधार"
+meaning = "holder of the strings"
+tagline = "Let any AI agent use your real browser, the way you do."
+color = "lavender"
+kind = "browser hands for AI agents"
+logo = "assets/logo.svg"
+shloka = "मत्तः परतरं नान्यत्किञ्चिदस्ति धनञ्जय ।\nमयि सर्वमिदं प्रोतं सूत्रे मणिगणा इव ॥"
+shloka_meaning = "There is nothing higher than me, Dhanañjaya: all this is strung on me, like pearls on a thread."
+shloka_source = "Bhagavad Gītā 7.7"

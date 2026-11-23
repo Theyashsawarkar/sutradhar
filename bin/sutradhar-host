@@ -1,0 +1,5 @@
+#!/bin/sh
+# Native-messaging host: browsers start this (they pass their own arguments,
+# which are ignored) and talk to the daemon through it.
+here=$(dirname "$(readlink -f "$0")")
+exec node "$here/../dist/sutradhar.mjs" host
