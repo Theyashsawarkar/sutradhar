@@ -148,6 +148,11 @@ Any other MCP client: command `sutradhar`, arguments `mcp --name <agent>`.
 
 ## Using it from an agent
 
+The MCP server's own instructions cover the basics. The full playbook is the
+[`sutradhar` skill](https://github.com/Theyashsawarkar/vishvakarma/blob/main/skills/sutradhar/SKILL.md)
+(in vishvakarma, so every agent gets it): the loop below, forms and files,
+pages that fight back, the steps that are the user's, approvals and Stop.
+
 A typical run:
 
 1. `navigate` to a URL (it opens a tab in the agent's own tab group if it has none).

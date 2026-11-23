@@ -1,11 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.1.2 (2026-11-23)
 
 - README: the install steps per browser (Zen's signing switch, Chrome's
   unpacked folder, Firefox's temporary add-on) and a full "How it works":
   three generated SVG diagrams (the pieces, one call end to end, a hand-off),
   light and dark, from `scripts/diagrams.py`.
+- The README points agents to the `sutradhar` skill in vishvakarma.
 - Zen shows as Zen: the native host tells the daemon which program started
   it, since Zen calls itself Firefox to extensions.
 
