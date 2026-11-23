@@ -97,6 +97,6 @@ export function extensionHelp() {
   return `Add the extension to each browser:
   Chrome, Chromium, Brave: open chrome://extensions, turn on Developer mode, "Load unpacked" → ${join(r, 'dist', 'chrome')}
   Zen: open about:addons → gear → "Install Add-on From File…" → ${join(r, 'dist', 'sutradhar-firefox.xpi')}
-       (Zen accepts unsigned add-ons; xpinstall.signatures.required is false there)
+       (first, in about:config, set xpinstall.signatures.required to false: Zen honours it, Firefox doesn't)
   Firefox: needs the signed .xpi from a release (Mozilla signs it); for development, about:debugging → "Load Temporary Add-on" → ${join(r, 'dist', 'firefox', 'manifest.json')}`;
 }

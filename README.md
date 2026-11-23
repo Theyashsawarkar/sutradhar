@@ -101,8 +101,9 @@ Then add the extension to each browser (`sutradhar install` prints these paths):
 
 - **Chrome, Chromium, Brave:** `chrome://extensions` → Developer mode → **Load
   unpacked** → `dist/chrome`.
-- **Zen:** `about:addons` → gear → **Install Add-on From File…** →
-  `dist/sutradhar-firefox.xpi` (Zen accepts unsigned add-ons).
+- **Zen:** first open `about:config` and set `xpinstall.signatures.required`
+  to `false` (Zen honours it; release Firefox doesn't). Then `about:addons` →
+  gear → **Install Add-on From File…** → `dist/sutradhar-firefox.xpi`.
 - **Firefox:** use the signed `.xpi` from a [release](https://github.com/Theyashsawarkar/sutradhar/releases);
   while developing, `about:debugging` → **Load Temporary Add-on** → `dist/firefox/manifest.json`.
 

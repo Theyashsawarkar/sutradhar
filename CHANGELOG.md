@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Docs and `sutradhar install`: Zen needs `xpinstall.signatures.required`
+  set to `false` in about:config before it takes the unsigned .xpi (its
+  default is `true`, like Firefox's, but Zen honours the switch).
+
 - Docs: Vayu's global Stop key is Super+Shift+Delete (Shift+Esc types `~` in
   Vayu's keymap).
 
