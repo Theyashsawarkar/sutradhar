@@ -33,4 +33,4 @@ command; docs/adr holds the decisions.
   `version` in package.json bumped to match (it flows into both manifests and
   the CLI).
 - Keys: the extension's "Stop every agent" command has no default key (the
-  global one is Super+Shift+Escape in Vayu's sway config, annotated there).
+  global one is Super+Shift+Delete in Vayu's sway config, annotated there).

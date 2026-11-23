@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Docs: Vayu's global Stop key is Super+Shift+Delete (Shift+Esc types `~` in
+  Vayu's keymap).
+
 ## 0.1.1 (2026-11-23)
 
 - Notifications use the logo from the install itself; `sutradhar install` no

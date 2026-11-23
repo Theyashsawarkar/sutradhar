@@ -227,7 +227,7 @@ sutradhar daemon | host       the daemon; the native-messaging host
 ```
 
 **Stop** is also the red button in the toolbar panel and on the page while an
-agent acts. In Vayu, **Super+Shift+Escape** runs `sutradhar stop` from anywhere.
+agent acts. In Vayu, **Super+Shift+Delete** runs `sutradhar stop` from anywhere.
 A stopped agent's calls fail with "the user pressed Stop" until you resume
 (panel, or `sutradhar resume` in a terminal).
 

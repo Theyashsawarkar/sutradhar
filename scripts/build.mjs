@@ -39,7 +39,7 @@ const common = {
   description: 'Lets AI agents use this browser like you do; payments, passwords and other risky steps stay yours.',
   version,
   icons: { 16: 'icons/icon-16.png', 32: 'icons/icon-32.png', 48: 'icons/icon-48.png', 128: 'icons/icon-128.png' },
-  // No default key: the global one is Super+Shift+Escape in sway (sutradhar stop); users may set one in the browser.
+  // No default key: the global one is Super+Shift+Delete in sway (sutradhar stop); users may set one in the browser.
   commands: { 'stop-agents': { description: 'Stop every agent' } },
 };
 const perms = ['tabs', 'scripting', 'webNavigation', 'webRequest', 'downloads', 'bookmarks', 'history', 'cookies', 'storage', 'nativeMessaging', 'alarms'];
