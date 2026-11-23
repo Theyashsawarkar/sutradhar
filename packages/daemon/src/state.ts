@@ -25,6 +25,9 @@ export interface Session {
   /** Set when the user pressed Stop after this session started. */
   stopped: boolean;
   calls: Set<AbortController>;
+  /** Set for CLI sessions: they survive between calls (see daemon.ts). */
+  key?: string;
+  detachedAt?: number;
   recording?: { dir: string; timer: ReturnType<typeof setInterval>; tab: number; frames: number; format: string };
 }
 

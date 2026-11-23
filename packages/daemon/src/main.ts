@@ -55,7 +55,9 @@ async function main(argv: string[]) {
       const { toolList } = await import('./mcp.ts');
       const { agentRouter } = await import('./agent-router.ts');
       if (!toolList().some((x) => x.name === tool)) throw new Error(`no tool "${tool}"; see sutradhar tools`);
-      const { client, socket } = await agentClient(process.env.SUTRADHAR_AGENT || 'cli');
+      // One session per terminal (or per SUTRADHAR_SESSION), kept between calls, so tabs stay yours.
+      const key = process.env.SUTRADHAR_SESSION || `cli-${process.ppid}`;
+      const { client, socket } = await agentClient(process.env.SUTRADHAR_AGENT || 'cli', key);
       const args = json ? JSON.parse(json) : {};
       const type = ((agentRouter as any)._def.procedures[tool])._def.type;
       const r = type === 'query' ? await (client as any)[tool].query(args) : await (client as any)[tool].mutate(args);

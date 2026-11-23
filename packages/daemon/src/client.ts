@@ -29,12 +29,12 @@ export async function connectOrStart(): Promise<Socket> {
   throw new Error(`could not start or reach the sutradhar daemon at ${paths.socket}`);
 }
 
-export async function agentClient(name: string): Promise<{ client: TRPCClient<AgentRouter>; socket: Socket }> {
+export async function agentClient(name: string, key?: string): Promise<{ client: TRPCClient<AgentRouter>; socket: Socket }> {
   const socket = await connectOrStart();
   const peer = createPeer<AgentRouter>({ send: (f: Frame) => socket.write(JSON.stringify(f) + '\n'), idPrefix: 'a', pathPrefix: 'agent.' });
   socket.setEncoding('utf8');
   socket.on('data', createLineReader((line) => { try { peer.handle(JSON.parse(line)); } catch { /* */ } }));
   socket.on('close', () => peer.close('daemon went away'));
-  await peer.client.session_start.mutate({ name });
+  await peer.client.session_start.mutate({ name, key });
   return { client: peer.client, socket };
 }

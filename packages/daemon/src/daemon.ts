@@ -59,7 +59,10 @@ function serve(sock: Socket) {
     }
     if (conn.role === 'agent' && conn.sessionId) {
       const s = D.sessions.get(conn.sessionId);
-      if (s) {
+      if (s && s.key) {
+        // A CLI session waits for its next call; it ends after 30 idle minutes.
+        s.detachedAt = Date.now();
+      } else if (s) {
         for (const ac of s.calls) ac.abort();
         if (s.recording) clearInterval(s.recording.timer);
         D.sessions.delete(conn.sessionId);
@@ -83,6 +86,15 @@ export async function runDaemon() {
     if (alive) { console.error(`sutradhar: a daemon is already running on ${paths.socket}`); process.exit(0); }
     unlinkSync(paths.socket);
   }
+  setInterval(() => {
+    for (const s of [...D.sessions.values()]) {
+      if (s.detachedAt && Date.now() - s.detachedAt > 30 * 60000) {
+        if (s.recording) clearInterval(s.recording.timer);
+        D.sessions.delete(s.id);
+        log({ session: s.id, event: 'session-end' });
+      }
+    }
+  }, 60000).unref();
   const server = createServer(serve);
   await new Promise<void>((res) => server.listen(paths.socket, res));
   chmodSync(paths.socket, 0o600);

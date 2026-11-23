@@ -295,6 +295,7 @@ The toolbar panel edits the `approve` and `eval` rules for the site you're on.
 |---|---|
 | `SUTRADHAR_SOCKET` | the daemon's socket (default `$XDG_RUNTIME_DIR/sutradhar/sock`) |
 | `SUTRADHAR_AGENT` | the agent's name for `mcp` and `call` |
+| `SUTRADHAR_SESSION` | the session `sutradhar call` uses (default: one per terminal); it keeps its tabs between calls and ends after 30 idle minutes |
 | `SUTRADHAR_BROWSER` | the browser agents use first when several are connected (`zen`, `chrome`…) |
 | `SUTRADHAR_NO_OS_INPUT` | turn the real mouse/keyboard off |
 

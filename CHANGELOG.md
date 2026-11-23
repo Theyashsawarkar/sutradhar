@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.3 (2026-11-23)
+
+- `sutradhar call` keeps one session per terminal (or per `SUTRADHAR_SESSION`)
+  between calls, so a script or an agent without MCP keeps its tabs. It ends
+  after 30 idle minutes.
+
 ## 0.1.2 (2026-11-23)
 
 - README: the install steps per browser (Zen's signing switch, Chrome's

@@ -95,9 +95,16 @@ const tabLine = (x: any, s: Session) => `${x.id}${x.active ? '*' : ''}  ${x.agen
 // ------------------------------------------------------------------ the tools
 export const agentRouter = t.router({
   session_start: agentProc.meta({ description: 'internal: name this session' })
-    .input(z.object({ name: z.string() })).mutation(({ ctx, input }) => {
+    .input(z.object({ name: z.string(), key: z.string().optional() })).mutation(({ ctx, input }) => {
       if (ctx.conn.sessionId) { const s = D.sessions.get(ctx.conn.sessionId); if (s) return s.id; }
-      return sessionFor(ctx, input.name).id;
+      // A keyed session (the CLI's) outlives its connection: the next call with the same key picks it up, tabs and all.
+      if (input.key) {
+        const old = [...D.sessions.values()].find((x) => x.key === input.key);
+        if (old) { ctx.conn.sessionId = old.id; old.detachedAt = undefined; return old.id; }
+      }
+      const s = sessionFor(ctx, input.name);
+      if (input.key) s.key = input.key;
+      return s.id;
     }),
 
   browsers: agentProc.meta({ description: 'List connected browsers (Chrome, Firefox, Zen…) and pick the one this session uses.' })

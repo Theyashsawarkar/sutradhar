@@ -34,3 +34,18 @@ test('mcp server lists tools and answers calls', { timeout: 30000 }, async (t) =
   assert.equal(r.result.isError, true);
   assert.match(r.result.content[0].text, /No browser is connected/);
 });
+
+test('cli calls from one terminal share a session', { timeout: 30000 }, async (t) => {
+  const sb = sandbox();
+  const d = startDaemon(sb);
+  await until(() => existsSync(sb.env.SUTRADHAR_SOCKET), 5000, 'daemon');
+  t.after(() => { d.kill(); sb.cleanup(); });
+  const run = (args) => new Promise((ok) => {
+    const p = spawn(process.execPath, [join(ROOT, 'dist', 'sutradhar.mjs'), ...args], { env: { ...sb.env, SUTRADHAR_SESSION: 'k1' } });
+    let out = ''; p.stdout.on('data', (x) => { out += x; }); p.on('close', () => ok(out));
+  });
+  await run(['call', 'log', '{}']);
+  await run(['call', 'log', '{}']);
+  const status = await run(['status']);
+  assert.equal((status.match(/cli#/g) ?? []).length, 1, status);
+});
