@@ -20,6 +20,10 @@ export interface BgState {
   overlays: Map<number, OverlayState>;
   net: Map<number, { list: NetEntry[]; inflight: Set<string> }>;
   stopGen: number;
+  /** Where sutradhar's pointer last was in each tab, to carry it across page loads. */
+  cursors: Map<number, { x: number; y: number }>;
+  /** What sutradhar is doing in each tab right now (for the panel). */
+  activity: Map<number, { label: string; time: number }>;
 }
 
 export const S: BgState = {
@@ -34,6 +38,8 @@ export const S: BgState = {
   /** Per-tab network log and in-flight count. */
   net: new Map<number, { list: NetEntry[]; inflight: Set<string> }>(),
   stopGen: 0,
+  cursors: new Map(),
+  activity: new Map(),
 };
 
 export interface NetEntry { id: string; method: string; url: string; type: string; status?: number; error?: string; start: number; ms?: number }

@@ -37,15 +37,16 @@ async function locate(ctx: ActContext, target: any, kind: string, force?: boolea
   if (t.ref) { const s = splitRef(t.ref); order = [s.frameId]; t.ref = s.ref; }
   else if (t.x !== undefined && t.y !== undefined) order = [0];
   else order = (await frames(ctx.tabId)).map((f) => f.frameId).sort((a, b) => a - b);
-  let lastErr: unknown;
+  let firstErr: unknown;
   for (const frameId of order) {
     try {
       const p = await content<Prepared>(ctx.tabId, frameId, 'prepare', { target: t, kind, force });
       const o = (await frameOrigin(ctx.tabId, frameId)) ?? { x: NaN, y: NaN };
       return { frameId, target: t, p, gx: p.x + o.x, gy: p.y + o.y };
-    } catch (e) { lastErr = e; if (t.ref) break; }
+    } catch (e) { firstErr ??= e; if (t.ref) break; }
   }
-  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+  // The main page's answer is the useful one, not an ad frame's "can't script this".
+  throw firstErr instanceof Error ? firstErr : new Error(String(firstErr));
 }
 
 /** Stops for the user when the step is theirs (handoff) or needs a yes (approve). */
@@ -82,12 +83,21 @@ async function canUseRealInput(ctx: ActContext) {
 }
 
 /** Shows the visible pointer gliding to the element (and a ripple if it clicks). */
-async function point(ctx: ActContext, loc: Located, click: boolean) {
+async function point(ctx: ActContext, loc: Located, click: boolean, label?: string) {
   if (Number.isNaN(loc.gx)) return;
   const dx = loc.gx - loc.p.x, dy = loc.gy - loc.p.y;
   const r = loc.p.rect;
-  await content(ctx.tabId, 0, 'cursor', { x: loc.gx, y: loc.gy, click, rect: { x: r.x + dx, y: r.y + dy, width: r.width, height: r.height } }).catch(() => {});
+  await cursorTo(ctx, loc.gx, loc.gy, { click, label, rect: { x: r.x + dx, y: r.y + dy, width: r.width, height: r.height } });
 }
+
+/** Moves the visible pointer; remembers where it is so the next page starts it there. */
+export async function cursorTo(ctx: ActContext, x: number, y: number, opts: { click?: boolean; label?: string; rect?: object } = {}) {
+  if (opts.label) S.activity.set(ctx.tabId, { label: opts.label, time: Date.now() });
+  const at = await content<{ x: number; y: number } | null>(ctx.tabId, 0, 'cursor', { x, y, ...opts, from: S.cursors.get(ctx.tabId) }).catch(() => null);
+  if (at) S.cursors.set(ctx.tabId, at);
+}
+
+const short = (what: string) => what.length > 46 ? what.slice(0, 44) + '…' : what;
 
 /** Typing speed a person can follow in a visible tab (about 4 s at most); full speed in a hidden one. */
 async function typingDelay(ctx: ActContext, length: number) {
@@ -98,7 +108,7 @@ async function typingDelay(ctx: ActContext, length: number) {
 
 async function clickAt(ctx: ActContext, loc: Located, step: { button?: 'left' | 'right' | 'middle'; count?: number; modifiers?: string[]; trusted?: boolean }) {
   const button = step.button ?? 'left', count = step.count ?? 1, mods = step.modifiers ?? [];
-  await point(ctx, loc, true);
+  await point(ctx, loc, true, `${count === 2 ? 'Double-clicking' : button === 'right' ? 'Right-clicking' : 'Clicking'} ${short(loc.p.what)}`);
   if (!isGecko && !Number.isNaN(loc.gx)) { await cdp.click(ctx.tabId, loc.gx, loc.gy, button, count, mods); return ''; }
   // Firefox's popup blocker drops synthetic clicks on new-tab links: open it as the click would.
   if (isGecko && loc.p.href && button === 'left' && (loc.p.newTab || mods.includes('Control')) && !step.trusted) {
@@ -122,7 +132,7 @@ async function clickAt(ctx: ActContext, loc: Located, step: { button?: 'left' | 
 }
 
 async function typeInto(ctx: ActContext, loc: Located, value: string, clear?: boolean, trusted?: boolean, at?: 'start' | 'end') {
-  await point(ctx, loc, true);
+  await point(ctx, loc, true, `Typing into ${short(loc.p.what)}`);
   const delay = await typingDelay(ctx, value.length);
   if (!isGecko) {
     await content(ctx.tabId, loc.frameId, clear ? 'selectAll' : at === 'start' ? 'focusStart' : 'focusEnd', { target: loc.target });
@@ -142,6 +152,7 @@ async function typeInto(ctx: ActContext, loc: Located, value: string, clear?: bo
 
 async function pressKeys(ctx: ActContext, keys: string, loc?: Located, trusted?: boolean) {
   if (loc) await content(ctx.tabId, loc.frameId, 'focus', { target: loc.target });
+  await content(ctx.tabId, 0, 'keys', { keys, label: `Pressing ${keys}` }).catch(() => {});
   if (!isGecko) { await cdp.press(ctx.tabId, keys); return; }
   if (trusted && (await canUseRealInput(ctx))) { await osInput(ctx, { action: 'key', keys }); return; }
   await content(ctx.tabId, loc?.frameId ?? 0, 'key', { target: loc?.target, keys });
@@ -163,7 +174,10 @@ export async function runStep(ctx: ActContext, step: Step): Promise<StepResult> 
   const ok = (note: string): StepResult => ({ do: step.do, ok: true, note });
   switch (step.do) {
     case 'wait': {
-      if (step.ms) { await sleep(Math.min(step.ms, 60000)); return ok(`waited ${step.ms} ms`); }
+      if (step.ms) {
+        if (step.ms >= 2000) await content(ctx.tabId, 0, 'caption', { text: 'Waiting…', ms: step.ms }).catch(() => {});
+        await sleep(Math.min(step.ms, 60000)); return ok(`waited ${step.ms} ms`);
+      }
       if (step.url) {
         const end = Date.now() + (step.timeout ?? 15000);
         while (Date.now() < end && !ctx.signal?.aborted) {
@@ -188,7 +202,7 @@ export async function runStep(ctx: ActContext, step: Step): Promise<StepResult> 
     case 'scroll': {
       // The pointer goes to what scrolls, as a person's hand on the wheel would.
       const where = await content<{ x: number; y: number }>(ctx.tabId, 0, 'scrollPoint', hasTarget(step) && !step.ref?.includes(':') ? { target: { ref: step.ref, selector: step.selector, text: step.text } } : {}).catch(() => null);
-      if (where) await content(ctx.tabId, 0, 'cursor', { x: where.x, y: where.y }).catch(() => {});
+      if (where) await cursorTo(ctx, where.x, where.y, { label: step.direction ? `Scrolling ${step.direction}` : 'Scrolling into view' });
       if (hasTarget(step)) {
         const loc = await locate(ctx, step, 'scroll', true);
         const note = await content<string>(ctx.tabId, loc.frameId, 'scroll', { target: loc.target, direction: step.direction, amount: step.amount });
@@ -220,8 +234,8 @@ export async function runStep(ctx: ActContext, step: Step): Promise<StepResult> 
     const a = await locate(ctx, step.from, 'drag', step.force);
     const b = await locate(ctx, step.to, 'drag', true);
     const g = await gate(ctx, step, a); if (g) return g;
-    await point(ctx, a, false);
-    void point(ctx, b, false);
+    await point(ctx, a, false, `Dragging ${short(a.p.what)}`);
+    await point(ctx, b, false, `Dropping on ${short(b.p.what)}`);
     if (a.p.draggable || a.frameId !== b.frameId || isGecko && !step.trusted) {
       if (a.frameId !== b.frameId) throw new Error('drag between frames is not supported');
       const note = await content<string>(ctx.tabId, a.frameId, 'drag', { from: a.target, to: b.target, fx: a.p.x, fy: a.p.y, tx: b.p.x, ty: b.p.y });
@@ -256,7 +270,7 @@ export async function runStep(ctx: ActContext, step: Step): Promise<StepResult> 
       return ok(`${step.count === 2 ? 'double-' : ''}${step.button && step.button !== 'left' ? step.button + '-' : ''}clicked ${what}${extra}`);
     }
     case 'hover': {
-      await point(ctx, loc, false);
+      await point(ctx, loc, false, `Pointing at ${short(what)}`);
       if (!isGecko) await cdp.mouseMove(ctx.tabId, loc.gx, loc.gy);
       else if (step.trusted && (await canUseRealInput(ctx))) await osInput(ctx, { action: 'move', x: loc.gx, y: loc.gy });
       else await content(ctx.tabId, loc.frameId, 'hover', { target: loc.target, x: loc.p.x, y: loc.p.y });
@@ -323,7 +337,7 @@ export async function runStep(ctx: ActContext, step: Step): Promise<StepResult> 
         }
         await content(ctx.tabId, loc.frameId, 'armFiles', { files: null });
       }
-      await point(ctx, loc, true);
+      await point(ctx, loc, true, `Attaching ${files.length} file${files.length === 1 ? '' : 's'}`);
       const note = await content<string>(ctx.tabId, loc.frameId, 'upload', { target: loc.target, files });
       return ok(note);
     }
@@ -353,10 +367,27 @@ export async function act(ctx: ActContext, steps: Step[]) {
   return { results, url: tab?.url ?? '', title: tab?.title ?? '', status: tab?.status ?? 'gone', dialogs: dialogs.slice(-3) };
 }
 
+const idleTimers = new Map<number, ReturnType<typeof setTimeout>>();
+
+/**
+ * The "working here" glow stays on between an agent's calls (it would flicker
+ * off and on otherwise) and goes out a few seconds after the last one.
+ */
 export async function showActing(tabId: number, session: string, on: boolean) {
   const cur = S.overlays.get(tabId);
   if (cur?.mode === 'waiting') return;
-  const st = on ? { mode: 'acting' as const, session } : { mode: 'idle' as const };
-  if (on) S.overlays.set(tabId, st); else S.overlays.delete(tabId);
-  await content(tabId, 0, 'overlay', st).catch(() => {});
+  clearTimeout(idleTimers.get(tabId));
+  if (on) {
+    if (cur?.mode === 'acting') return;
+    const st = { mode: 'acting' as const, session };
+    S.overlays.set(tabId, st);
+    await content(tabId, 0, 'overlay', st).catch(() => {});
+    return;
+  }
+  idleTimers.set(tabId, setTimeout(() => {
+    if (S.overlays.get(tabId)?.mode !== 'acting') return;
+    S.overlays.delete(tabId);
+    S.activity.delete(tabId);
+    void content(tabId, 0, 'overlay', { mode: 'idle' }).catch(() => {});
+  }, 4500));
 }

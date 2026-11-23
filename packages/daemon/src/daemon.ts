@@ -14,6 +14,7 @@ import { D, log, type Conn } from './state.ts';
 import { t } from './trpc.ts';
 import { settleAll } from './gates.ts';
 import { resume, stopAll } from './control.ts';
+import { focusWindow } from './osinput.ts';
 
 /** For the `sutradhar` CLI (status, stop, resume). */
 const adminRouter = t.router({
@@ -25,6 +26,19 @@ const adminRouter = t.router({
   })),
   stop: t.procedure.mutation(() => stopAll('sutradhar stop')),
   resume: t.procedure.mutation(() => resume()),
+  /** Brings the tab sutradhar is working in to the front, so the user can watch. */
+  watch: t.procedure.mutation(async () => {
+    const recent = [...D.sessions.values()].filter((s) => s.tab !== undefined && s.browserId).sort((a, b) => b.started - a.started)[0];
+    for (const b of [...D.browsers.values()]) {
+      const tabs = await b.client.tabs.list.query().catch(() => []);
+      const tab = (recent?.browserId === b.id && recent.tab) || tabs.find((x: any) => x.group === 'sutra' || x.agent)?.id;
+      if (!tab) continue;
+      const info = await b.client.tabs.focus.mutate({ tab });
+      try { await focusWindow(b.hello.kind, info.title); } catch { /* not on sway */ }
+      return `watching ${info.title}`;
+    }
+    return 'sutradhar has no tab open';
+  }),
 });
 
 export const rootRouter = t.router({ hub: hubRouter, agent: agentRouter, admin: adminRouter });

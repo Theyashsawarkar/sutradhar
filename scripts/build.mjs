@@ -80,6 +80,7 @@ for (const [target, manifest] of Object.entries(manifests)) {
   });
   cpSync(join(ext, 'src/panel/panel.html'), join(out, 'panel.html'));
   cpSync(join(ext, 'src/panel/panel.css'), join(out, 'panel.css'));
+  cpSync(join(ext, 'src/panel/idle.html'), join(out, 'idle.html'));
   cpSync(join(ext, 'icons'), join(out, 'icons'), { recursive: true });
   writeFileSync(join(out, 'manifest.json'), JSON.stringify(manifest, null, 2));
 }

@@ -239,6 +239,20 @@ export async function scenario(t, { launch, engine }) {
     assert.match(readFileSync(sb.notifyLog, 'utf8'), /Log in to the test site/);
   });
 
+  await only(t, 'the last sutra tab is parked, not closed, and reused', async () => {
+    const cur = +/current tab: (\d+)/.exec(await c.tabs.query({}))[1];
+    for (const line of (await c.tabs.query({})).split('\n')) {
+      const m = /^(\d+)\*?\s+\[yours/.exec(line);
+      if (m && +m[1] !== cur) await c.tab_close.mutate({ tab: +m[1] });
+    }
+    assert.match(await c.tab_close.mutate({ tab: cur }), /parked/);
+    await until(async () => /sutradhar · idle/.test(await c.tabs.query({})), 5000, 'idle page');
+    await c.tab_open.mutate({ url: site.url + '/page2.html' });
+    const tabs = await c.tabs.query({});
+    assert.match(tabs, /\[yours · sutra\] Second page/);
+    assert.doesNotMatch(tabs, /sutradhar · idle/, 'the parked tab was reused');
+  });
+
   await only(t, 'stop ends everything until resumed', async () => {
     const { connectRaw } = await import('../../packages/daemon/src/client.ts');
     const { createPeer } = await import('../../packages/protocol/src/rpc.ts');

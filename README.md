@@ -221,15 +221,26 @@ so a page can't press **Done** or **Allow** for you.
 - **The sutra tab group**: everything sutradhar does happens in its tabs, in
   the background, while you work in yours.
 - **"sutradhar is working here"** in a pill at the bottom of the page, with a
-  **Stop** button, and an accent border around the tab. You see sutradhar,
+  **Stop** button; a glowing border that breathes around the tab, and a light
+  running along its top edge while it works. You see sutradhar,
   never which agent is behind it: not on the page, not in notifications, not
   in the panel (the log on disk keeps the names, for you).
-- **A pointer that moves like a person's**, with a "sutradhar" name tag: it
-  glides to each element, a ripple shows each click, a ring marks the field,
-  scrolling is smooth with the pointer over what scrolls, and typing goes at a
-  pace you can follow (at most about 4 seconds for any text). It sits in the
-  browser's top layer, above modal dialogs. In a tab you aren't looking at,
-  sutradhar works at full speed with no pointer.
+- **A second pointer, sutradhar's**, that moves like a person's hand: it glides
+  to each element and takes the shape your own pointer would (a hand over links
+  and buttons, a text cursor over fields), presses with a ripple on each click,
+  rings the field it works in, and says what it's doing on its name tag
+  ("sutradhar · Clicking “Post”"). Keys show as a chip ("⏎ Enter", "Ctrl + A").
+  It stays where it was between steps and across page loads, so it never pops
+  up out of nowhere; it fades out after 8 quiet seconds. Scrolling is smooth
+  with the pointer over what scrolls, and typing goes at a pace you can follow
+  (at most about 4 seconds for any text). It sits in the browser's top layer,
+  above modal dialogs. In a tab you aren't looking at, sutradhar works at full
+  speed with no pointer.
+- **The sutra group stays**: sutradhar's last tab is never closed, it's parked
+  on a small "sutradhar is idle" page and reused for the next task.
+- **Watch it**: the toolbar panel shows what it's doing right now ("▸ Clicking
+  “Post” on linkedin.com") and a **Watch it work** button; `sutradhar watch`
+  does the same from a terminal.
 - **Your screen stays yours**: the real mouse and keyboard are used only when
   sutradhar's tab is the one in front of a focused window, and never type
   into another window. A popup from its tab doesn't take the front from you.
@@ -275,6 +286,7 @@ Everything Claude in Chrome's tools did maps here: `read_page` → `snapshot`,
 sutradhar status              what's connected: browsers, agent sessions, waiting steps
 sutradhar stop                stop every agent now
 sutradhar resume              let stopped agents carry on (from a terminal)
+sutradhar watch               bring the tab sutradhar is working in to the front
 sutradhar log [-n N]          recent actions
 sutradhar call TOOL [JSON]    call a tool as an agent would
 sutradhar tools               the tools agents get

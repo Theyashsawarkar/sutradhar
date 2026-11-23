@@ -26,6 +26,13 @@ async function tabInfo(tab: any): Promise<TabInfo> {
   };
 }
 
+/** sutradhar's tab parked on its idle page, if there is one. */
+async function parkedTab(): Promise<number | undefined> {
+  const idle = ext.runtime.getURL('idle.html');
+  const tabs = await ext.tabs.query({});
+  return tabs.find((t: any) => (t.url ?? '').startsWith(idle))?.id;
+}
+
 const colorNames = ['grey', 'blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan', 'orange'];
 
 export async function group(tabIds: number[], title: string, color?: string) {
@@ -74,13 +81,27 @@ export const browserRouter = t.router({
     open: p.input(z.object({ url: z.string().optional(), active: z.boolean().optional(), windowId: z.number().optional(),
       group: z.string().optional(), session: z.string().optional(), wait: z.boolean().optional() }))
       .mutation(async ({ input }) => {
-        const tab = await ext.tabs.create({ url: input.url || 'about:blank', active: input.active ?? true, windowId: input.windowId });
+        // Reuse sutradhar's parked tab (the idle page) before opening a new one.
+        const parked = await parkedTab();
+        const tab = parked
+          ? await ext.tabs.update(parked, { url: input.url || 'about:blank', ...(input.active ? { active: true } : {}) })
+          : await ext.tabs.create({ url: input.url || 'about:blank', active: input.active ?? true, windowId: input.windowId });
         if (input.session) S.agentTabs.set(tab.id, input.session);
         if (input.group) await group([tab.id], input.group);
         if (input.url && input.wait !== false) await waitLoad(tab.id);
         return tabInfo(await ext.tabs.get(tab.id));
       }),
-    close: p.input(Tab).mutation(async ({ input }) => { await ext.tabs.remove(input.tab); S.agentTabs.delete(input.tab); return true; }),
+    close: p.input(Tab).mutation(async ({ input }) => {
+      // sutradhar's last tab is parked on the idle page instead, so the sutra group stays.
+      const tab = await ext.tabs.get(input.tab);
+      const others = (await ext.tabs.query({ windowId: tab.windowId })).filter((t: any) => t.id !== tab.id && S.agentTabs.has(t.id));
+      if (!others.length && (tab.groupId ?? -1) >= 0) {
+        await ext.tabs.update(tab.id, { url: ext.runtime.getURL('idle.html') });
+        S.agentTabs.delete(input.tab);
+        return 'parked';
+      }
+      await ext.tabs.remove(input.tab); S.agentTabs.delete(input.tab); return 'closed';
+    }),
     focus: p.input(Tab).mutation(async ({ input }) => {
       const tab = await ext.tabs.update(input.tab, { active: true });
       await ext.windows.update(tab.windowId, { focused: true });
@@ -104,7 +125,10 @@ export const browserRouter = t.router({
         if (input.action === 'back') await ext.tabs.goBack(input.tab);
         else if (input.action === 'forward') await ext.tabs.goForward(input.tab);
         else if (input.action === 'reload') await ext.tabs.reload(input.tab);
-        else if (input.url) await ext.tabs.update(input.tab, { url: input.url });
+        else if (input.url) {
+          try { await content(input.tab, 0, 'caption', { text: `Opening ${new URL(input.url).hostname}`, ms: 3000 }); } catch { /* blank or browser page */ }
+          await ext.tabs.update(input.tab, { url: input.url });
+        }
         await sleep(100);
         return tabInfo(await waitLoad(input.tab, input.timeout ?? 20000));
       }),

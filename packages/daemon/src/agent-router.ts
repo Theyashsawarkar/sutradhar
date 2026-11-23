@@ -149,9 +149,9 @@ export const agentRouter = t.router({
 
   tab_close: agentProc.meta({ description: 'Close one of your tabs.' }).input(z.object({ tab: z.number() })).mutation(async ({ ctx, input }) => {
     const s = sessionFor(ctx); const { b, tab } = await tabFor(s, input.tab);
-    await call(s, 'tab_close', { tab }, () => b.client.tabs.close.mutate({ tab }));
+    const how = await call(s, 'tab_close', { tab }, () => b.client.tabs.close.mutate({ tab }));
     s.tabs.delete(tab); if (s.tab === tab) s.tab = [...s.tabs].at(-1);
-    return `closed tab ${tab}`;
+    return how === 'parked' ? `tab ${tab} parked on sutradhar's idle page (the last tab of the sutra group stays)` : `closed tab ${tab}`;
   }),
 
   tab_focus: agentProc.meta({ description: 'Bring one of your tabs to the front. Only when the user asks to watch or take over: sutradhar works in background tabs while the user uses theirs.' }).input(z.object({ tab: z.number() })).mutation(async ({ ctx, input }) => {

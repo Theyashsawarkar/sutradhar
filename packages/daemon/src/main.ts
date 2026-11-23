@@ -18,6 +18,7 @@ const HELP = `sutradhar ${VERSION}: lets AI agents use your real browser (Chrome
   sutradhar status              what's connected: browsers, agent sessions, waiting steps
   sutradhar stop                stop every agent now (they ask before carrying on)
   sutradhar resume              let stopped agents carry on (from a terminal)
+  sutradhar watch               bring the tab sutradhar is working in to the front
   sutradhar log [-n N]          recent actions, newest last
   sutradhar call TOOL [JSON]    call a tool as an agent would ("sutradhar tools" lists them)
   sutradhar tools               the tools agents get
@@ -100,6 +101,11 @@ async function main(argv: string[]) {
       const a = await admin();
       if (!a) { console.log('daemon not running'); return; }
       await a.client.resume.mutate(); console.log('agents may carry on'); a.done(); return;
+    }
+    case 'watch': {
+      const a = await admin();
+      if (!a) { console.log('daemon not running'); return; }
+      console.log(await a.client.watch.mutate()); a.done(); return;
     }
     case 'log': {
       const n = rest[0] === '-n' ? +rest[1] : 40;

@@ -184,8 +184,24 @@ ext.runtime.onMessage.addListener((msg: any, sender: any, reply: (r: unknown) =>
         return S.hub?.resume.mutate();
       case 'resolve':
         return S.hub?.resolve.mutate({ id: msg.id, outcome: msg.outcome });
-      case 'state':
-        return { connected: !!S.hub, hello: S.hello, ...(S.hub ? await S.hub.state.query() : {}) };
+      case 'state': {
+        const now: { label: string; host: string; tab: number }[] = [];
+        for (const [tab, a] of S.activity) {
+          if (Date.now() - a.time > 15000) continue;
+          const t = await ext.tabs.get(tab).catch(() => null);
+          let host = ''; try { host = new URL(t?.url ?? '').hostname; } catch { /* */ }
+          now.push({ label: a.label, host, tab });
+        }
+        return { connected: !!S.hub, hello: S.hello, now, ...(S.hub ? await S.hub.state.query() : {}) };
+      }
+      case 'watch': {
+        const tabs = [...S.agentTabs.keys()];
+        const last = [...S.activity.entries()].sort((x, y) => y[1].time - x[1].time)[0]?.[0] ?? tabs.at(-1);
+        if (last === undefined) return false;
+        const t = await ext.tabs.update(last, { active: true });
+        await ext.windows.update(t.windowId, { focused: true });
+        return true;
+      }
       case 'policy-set':
         return S.hub?.policySet.mutate(msg.patch);
     }

@@ -8,7 +8,7 @@ import {
   synthType, target, upload, waitFor,
 } from './actions.ts';
 import { DEFAULT_RISK, type RiskConfig } from './risk.ts';
-import { moveCursor, restCursor, setOverlay } from './overlay.ts';
+import { caption, cursorPos, keyChip, moveCursor, restCursor, setOverlay } from './overlay.ts';
 import { hookFirefoxPage, listenForErrors, listenToMainWorld, state } from './hooks.ts';
 import { describe } from './dom.ts';
 
@@ -73,7 +73,9 @@ function start() {
     geometry: () => ({ innerScreenX: (window as any).mozInnerScreenX, innerScreenY: (window as any).mozInnerScreenY, screenX, screenY, innerWidth, innerHeight, outerWidth, outerHeight, dpr: devicePixelRatio, title: document.title,
       scrollWidth: document.documentElement.scrollWidth, scrollHeight: document.documentElement.scrollHeight, scrollX, scrollY }),
     overlay: (a) => { setOverlay(a); if (a?.mode === 'idle') restCursor(); return true; },
-    cursor: async (a) => { await moveCursor(a.x, a.y, a); return true; },
+    cursor: async (a) => { await moveCursor(a.x, a.y, a); return cursorPos(); },
+    keys: (a) => { keyChip(a.keys); if (a.label) caption(a.label); return true; },
+    caption: (a) => { caption(a.text, a.ms); return true; },
     dialogAnswer: (a) => { state.answers.push({ accept: a.accept, text: a.text }); return state.answers.length; },
     dialogs: () => state.dialogs,
     console: (a) => {

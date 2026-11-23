@@ -59,6 +59,12 @@ async function refresh() {
   else li.append(el('span', { class: stopped && !working.length ? 'bad' : 'ok' }, stopped && !working.length ? '■ ' : '● '),
     document.createTextNode(working.length ? `sutradhar is working in ${tabs} tab(s)` : 'stopped'));
   ul.append(li);
+  for (const n of st.now ?? []) {
+    const row = el('li');
+    row.append(el('span', { class: 'accent' }, '▸ '), document.createTextNode(`${n.label}${n.host ? ' on ' + n.host : ''}`));
+    ul.append(row);
+  }
+  ($('watch') as HTMLButtonElement).hidden = !working.length;
   ($('resume') as HTMLButtonElement).hidden = !sessions.some((s: any) => s.stopped);
 
   const log = $('log');
@@ -87,6 +93,7 @@ async function init() {
     });
   }
   $('stop').addEventListener('click', async () => { await ask({ type: 'stop' }).catch(() => {}); refresh(); });
+  $('watch').addEventListener('click', async () => { await ask({ type: 'watch' }); });
   $('resume').addEventListener('click', async () => { await ask({ type: 'resume' }); refresh(); });
   await refresh();
   setInterval(refresh, 1500);

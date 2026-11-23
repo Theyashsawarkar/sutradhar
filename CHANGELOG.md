@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.1.9 (2026-11-23)
+
+- **A better pointer.** It takes the shape your own pointer would (a hand over
+  links and buttons, a text cursor over fields, from the page's own CSS
+  cursor), presses on clicks, and its name tag says what it's doing
+  ("sutradhar · Clicking “Post”"). Key presses show as a chip. It stays put
+  between steps and carries its position across page loads, so it no longer
+  vanishes and pops back in another place; it fades after 8 quiet seconds.
+- **A more obvious border:** a glow that breathes around the tab and a light
+  running along its top edge while sutradhar works. The glow stays on
+  between an agent's calls instead of flickering off and on.
+- **The sutra group stays:** closing sutradhar's last tab parks it on a
+  "sutradhar is idle" page; the next task reuses it.
+- **Watch it:** the panel shows what sutradhar is doing now and has a "Watch
+  it work" button; `sutradhar watch` brings its tab to the front.
+- When an element isn't found, the error is the main page's, not an ad frame's.
+
 ## 0.1.8 (2026-11-23)
 
 - **Rich editors keep every line.** The caret for typing went *between* the
