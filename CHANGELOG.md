@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.4 (2026-11-23)
+
+- Background tabs: waiting for an element to settle no longer depends on
+  animation frames, which Zen and Firefox throttle to about one a minute in
+  tabs you aren't looking at (a click there took up to two minutes); typing
+  doesn't pause between characters there either.
+- An element under a sticky header or toolbar is centred and checked again
+  before it's reported as covered.
+- Scrolling the page finds the real scroller in apps that scroll an inner
+  container (LinkedIn, Gmail…).
+- Firefox and Zen update the extension by themselves from now on: the
+  manifest's `update_url` points at `updates.json` in the repo, which the
+  build writes for each release.
+
 ## 0.1.3 (2026-11-23)
 
 - `sutradhar call` keeps one session per terminal (or per `SUTRADHAR_SESSION`)

@@ -61,7 +61,9 @@ const manifests = {
   },
   firefox: {
     manifest_version: 2, ...common,
-    browser_specific_settings: { gecko: { id: 'sutradhar@theyashsawarkar.github.io', strict_min_version: '128.0' } },
+    browser_specific_settings: { gecko: { id: 'sutradhar@theyashsawarkar.github.io', strict_min_version: '128.0',
+      // Self-distributed updates: Firefox/Zen check this file and install newer releases.
+      update_url: 'https://raw.githubusercontent.com/Theyashsawarkar/sutradhar/main/updates.json' } },
     browser_action: { default_popup: 'panel.html', default_title: 'Sutradhar', default_icon: common.icons },
     background: { scripts: ['background.js'], persistent: true },
     permissions: [...perms, '<all_urls>'],
@@ -92,5 +94,10 @@ with zipfile.ZipFile(dst, 'w', zipfile.ZIP_DEFLATED) as z:
             p = os.path.join(base, f)
             z.write(p, os.path.relpath(p, src))
 `, join(dist, 'firefox'), join(dist, 'sutradhar-firefox.xpi')]);
+
+// The update manifest Firefox/Zen read (committed at the repo root; points at the release's .xpi).
+writeFileSync(join(root, 'updates.json'), JSON.stringify({ addons: { 'sutradhar@theyashsawarkar.github.io': { updates: [
+  { version, update_link: `https://github.com/Theyashsawarkar/sutradhar/releases/download/v${version}/sutradhar-firefox.xpi` },
+] } } }, null, 2) + '\n');
 
 console.log(`built sutradhar ${version} → dist/`);

@@ -1,0 +1,12 @@
+{
+  "addons": {
+    "sutradhar@theyashsawarkar.github.io": {
+      "updates": [
+        {
+          "version": "0.1.4",
+          "update_link": "https://github.com/Theyashsawarkar/sutradhar/releases/download/v0.1.4/sutradhar-firefox.xpi"
+        }
+      ]
+    }
+  }
+}

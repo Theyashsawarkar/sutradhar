@@ -19,7 +19,8 @@ export interface Prepared {
   href?: string; newTab?: boolean;
 }
 
-const raf = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
+// Background tabs throttle animation frames (to once a minute or less): never wait on one alone.
+const raf = () => new Promise<void>((r) => { const t = setTimeout(r, 34); requestAnimationFrame(() => { clearTimeout(t); r(); }); });
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 export function target(t: any): Element {
@@ -56,13 +57,28 @@ export async function prepare(t: any, kind: string, cfg: RiskConfig, force = fal
   const r = el.getBoundingClientRect();
   const x = atPoint ? t.x : Math.round(r.left + Math.min(r.width / 2, Math.max(1, r.width - 2)));
   const y = atPoint ? t.y : Math.round(r.top + Math.min(r.height / 2, Math.max(1, r.height - 2)));
-  let covered: string | undefined;
-  if (!atPoint) {
-    const hit = deepHit(x, y);
+  const coverOf = (px: number, py: number) => {
+    const hit = deepHit(px, py);
     if (hit && hit !== el && !el.contains(hit) && !hit.contains(el) && !(el as HTMLInputElement).labels?.length) {
       const label = hit.closest('label');
       const forMe = label && ((label as HTMLLabelElement).control === el);
-      if (!forMe && !isShadowRelated(hit, el)) covered = describe(hit);
+      if (!forMe && !isShadowRelated(hit, el)) return describe(hit);
+    }
+    return undefined;
+  };
+  let covered: string | undefined;
+  if (!atPoint) {
+    covered = coverOf(x, y);
+    if (covered) {
+      // Often a sticky header or a toolbar over the element: centre it and look again.
+      el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' as ScrollBehavior });
+      await raf(); await raf();
+      const r2 = el.getBoundingClientRect();
+      const x2 = Math.round(r2.left + r2.width / 2), y2 = Math.round(r2.top + r2.height / 2);
+      covered = coverOf(x2, y2);
+      if (!covered) {
+        return { ...(await prepare(t, kind, cfg, true)), covered: undefined };
+      }
     }
   }
   const disabled = !!((el as any).disabled || el.getAttribute('aria-disabled') === 'true');
@@ -192,7 +208,8 @@ export async function synthType(el: Element, text: string) {
       el.dispatchEvent(new W.InputEvent('input', pageObj({ bubbles: true, data: ch, inputType: 'insertText' })));
     }
     key(el, 'keyup', ch);
-    if (text.length < 200) await sleep(2);
+    // A small human pace in a visible tab; none in a hidden one, where timers are throttled to ~1/s.
+    if (text.length < 200 && !document.hidden) await sleep(2);
   }
   el.dispatchEvent(new W.Event('change', pageObj({ bubbles: true })));
 }
@@ -257,8 +274,23 @@ export function selectOption(el: Element, values: string[]): string {
 }
 
 // ------------------------------------------------------------------ scroll
+/** The page's main scroller: the document, or (in apps like LinkedIn) the biggest scrolling element. */
+function pageScroller(): Element {
+  const doc = document.scrollingElement ?? document.documentElement;
+  if (doc.scrollHeight > doc.clientHeight + 4) return doc;
+  let best: Element = doc, area = 0;
+  for (const e of Array.from(document.querySelectorAll('main, [role=main], div, section'))) {
+    if (e.scrollHeight <= e.clientHeight + 4) continue;
+    const cs = getComputedStyle(e);
+    if (!/(auto|scroll)/.test(cs.overflowY)) continue;
+    const a = e.clientWidth * e.clientHeight;
+    if (a > area) { area = a; best = e; }
+  }
+  return best;
+}
+
 export function scroll(el: Element | undefined, direction?: string, amount?: number | 'page' | 'end') {
-  const scroller = el ? scrollableOf(el) : (document.scrollingElement ?? document.documentElement);
+  const scroller = el ? scrollableOf(el) : pageScroller();
   if (el && !direction) { el.scrollIntoView({ block: 'center', behavior: 'instant' as ScrollBehavior }); return 'scrolled into view'; }
   const dir = direction ?? 'down';
   const page = dir === 'left' || dir === 'right' ? (scroller.clientWidth || innerWidth) : (scroller.clientHeight || innerHeight);
@@ -278,7 +310,7 @@ function scrollableOf(el: Element): Element {
     if (/(auto|scroll)/.test(cs.overflowY + cs.overflowX) && (e.scrollHeight > e.clientHeight || e.scrollWidth > e.clientWidth)) return e;
     e = e.parentElement;
   }
-  return document.scrollingElement ?? document.documentElement;
+  return pageScroller();
 }
 
 // ------------------------------------------------------------------ drag and drop, files
