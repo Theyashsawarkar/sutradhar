@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Spatial look** in the browser panel: graphite, rounder cards, near-white where you act, no all-caps headings.
 - The website has Vayu's Spatial look: graphite glass, a floating navigation bar, near-white for links and the main button, and the tool's own colour only as its signature (the logo's glow, the shloka's line, the release dots). No more all-caps labels.
 - `scripts/amo-submit.mjs` submits a release to addons.mozilla.org (listed) with
   the store build, the source archive and the listing in
