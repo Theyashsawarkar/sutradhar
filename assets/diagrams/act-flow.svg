@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" width="1000" height="600" role="img" aria-labelledby="t d">
   <title id="t">One act call, end to end</title>
-  <desc id="d">An agent&#x27;s act call goes through the sutradhar mcp pipe to its MCP session in the daemon to the extension, which prepares the element in the page, checks its risk, sends the input, and returns the result.</desc>
+  <desc id="d">An agent&#x27;s act call goes through pranali (sutradhar mcp) to its MCP session in the daemon to the extension, which prepares the element in the page, checks its risk, sends the input, and returns the result.</desc>
 
   <style>
     text { font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans", sans-serif; }
@@ -57,7 +57,7 @@
   <line class="life" x1="130.0" y1="108" x2="130.0" y2="570"/>
   <rect class="card ring-accent" x="241.0" y="58" width="148" height="50" rx="12"/>
   <text class="h " x="315.0" y="80" text-anchor="middle">sutradhar mcp</text>
-  <text class="s " x="315.0" y="98" text-anchor="middle">pipe to mcp.sock</text>
+  <text class="s " x="315.0" y="98" text-anchor="middle">pranali → mcp.sock</text>
   <line class="life" x1="315.0" y1="108" x2="315.0" y2="570"/>
   <rect class="card ring-accent" x="426.0" y="58" width="148" height="50" rx="12"/>
   <text class="h " x="500.0" y="80" text-anchor="middle">Daemon</text>

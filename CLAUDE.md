@@ -20,10 +20,22 @@ command; docs/adr holds the decisions.
 - **Build:** `pnpm build` (scripts/build.mjs writes dist/ and both
   manifests). `pnpm check` = typecheck + unit tests + build.
 - **MCP:** the daemon serves each MCP session itself on `mcp.sock`
-  (daemon.ts `serveMcp`, server built in mcp.ts); `sutradhar mcp` is the
-  Rust pipe `crates/sutradhar-mcp` (std only: preamble `{"name"}` line, then
-  bytes both ways; `cargo test` and `cargo clippy -- -D warnings` there).
-  Without it, or without a daemon, `sutradhar mcp` is the old Node server.
+  (daemon.ts `serveMcp`, server built in mcp.ts) after pranali's hello
+  (spec: ~/personal/pranali/docs/PROTOCOL.md; the old `{"name"}` preamble is
+  accepted for one more release). `sutradhar mcp` execs `pranali sutradhar`
+  when it's on PATH (bin/sutradhar), else it's the Node server
+  (`mcp --in-process`, also pranali's `--fallback`).
+- **Daemon lifetime:** systemd's (`sutradhar.socket` + `sutradhar-mcp.socket`
+  → `sutradhar.service`, written by install.ts). The daemon takes their fds
+  (runtime.ts `activatedFds`), else binds itself; it holds `daemon.lock`
+  before touching sockets, removes only sockets it bound or dead ones, and
+  drains on SIGTERM (20 s). Nothing else starts a daemon, except the CLI/Node
+  MCP server when no units are installed. Runtime dir: `$XDG_RUNTIME_DIR/sutradhar`
+  else `$XDG_STATE_HOME/sutradhar/run`, never /tmp, checked private.
+- **Native host:** `crates/sutradhar-host` (Rust, std only), run by
+  `bin/sutradhar-host`; `host.ts` is the Node fallback and must stay byte-for-byte
+  the same (tests/e2e/host.test.mjs compares them). `cargo test`, `cargo
+  clippy --all-targets -- -D warnings` and `cargo fmt --check` there.
 - **Tests never touch the user's browser, profile, daemon or desktop.**
   `pnpm e2e` runs throwaway headless Chromium, Zen and Firefox profiles with a
   test daemon on its own socket and a fake notify-send

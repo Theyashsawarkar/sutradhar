@@ -80,7 +80,8 @@ to you whenever a step is yours.
 | What | Why |
 |---|---|
 | Linux, Node.js 22.18+ | the daemon, the native-messaging host, the MCP server |
-| Rust (`cargo`), optional | builds `sutradhar-mcp`, the small pipe each agent runs (about 2 MB; without it `sutradhar mcp` is a Node process of about 78 MB per agent) |
+| [pranali](https://github.com/Theyashsawarkar/pranali), optional | the small pipe each agent's `sutradhar mcp` becomes (about 2 MB; without it `sutradhar mcp` is a Node process of about 78 MB per agent) |
+| Rust (`cargo`), optional | builds `sutradhar-host`, the native-messaging host each browser starts (about 2.4 MB; without it the host is a Node process of about 68 MB) |
 | Chrome / Chromium / Brave 116+, Firefox 128+ or Zen | the browser it drives |
 | `notify-send` (libnotify) and a notification server | "your turn" notifications |
 | sway (or another wlroots compositor), `wtype` | real mouse and keyboard (optional) |
@@ -108,8 +109,13 @@ sutradhar install           # native-messaging hosts for every browser found + t
 
 `sutradhar install` writes a host manifest for every browser it finds
 (Chrome, Chromium, Brave, Edge, Vivaldi in `~/.config/<browser>/NativeMessagingHosts`;
-Firefox and Zen in `~/.mozilla/native-messaging-hosts`), enables
-`sutradhar.service`, and prints where the extension files are.
+Firefox and Zen in `~/.mozilla/native-messaging-hosts`), writes and enables
+`sutradhar.service` with its two sockets, `sutradhar.socket` (browsers and the
+CLI) and `sutradhar-mcp.socket` (agents' MCP sessions), and prints where the
+extension files are. systemd owns the daemon: it listens on both sockets and
+starts the daemon on the first connection, so nothing else ever starts one.
+To stop it for good, stop the sockets too:
+`systemctl --user stop sutradhar.socket sutradhar-mcp.socket sutradhar.service`.
 
 **2. The extension, once per browser.** Browsers don't let another program put
 an extension into your profile, so this step is yours. The files are in
@@ -146,6 +152,9 @@ codex mcp add sutradhar -- sutradhar mcp --name codex
 ```
 
 Any other MCP client: command `sutradhar`, arguments `mcp --name <agent>`.
+With [pranali](https://github.com/Theyashsawarkar/pranali) installed, the
+client can also run it directly: command `pranali`, arguments
+`sutradhar --agent <agent>` (that's what `sutradhar mcp` execs).
 
 ## Using it from an agent
 
@@ -304,7 +313,7 @@ sutradhar log [-n N]          recent actions
 sutradhar call TOOL [JSON]    call a tool as an agent would
 sutradhar tools               the tools agents get
 sutradhar install | uninstall | doctor
-sutradhar mcp [--name NAME]   the MCP server (agents start this)
+sutradhar mcp [--name NAME]   the MCP server (agents start this; pranali when installed)
 sutradhar daemon | host       the daemon; the native-messaging host
 ```
 
@@ -344,7 +353,7 @@ The toolbar panel's "Ask before…" boxes set the `approve` and `eval` rules for
 
 | Environment | |
 |---|---|
-| `SUTRADHAR_SOCKET` | the daemon's socket (default `$XDG_RUNTIME_DIR/sutradhar/sock`) |
+| `SUTRADHAR_SOCKET` | the daemon's socket (default `$XDG_RUNTIME_DIR/sutradhar/sock`, or `$XDG_STATE_HOME/sutradhar/run/sock` without a runtime dir; never `/tmp`) |
 | `SUTRADHAR_MCP_SOCKET` | where the daemon serves MCP sessions (default `mcp.sock` beside the socket) |
 | `SUTRADHAR_AGENT` | the agent's name for `mcp` and `call` |
 | `SUTRADHAR_SESSION` | the session `sutradhar call` uses (default: one per terminal); it keeps its tabs between calls and ends after 30 idle minutes |
@@ -359,29 +368,40 @@ Files: the log is `~/.local/state/sutradhar/log.jsonl`; downloads saved by
 ### The pieces
 
 <p align="center">
-  <img src="assets/diagrams/architecture.svg" alt="Architecture: agents talk MCP to sutradhar mcp, a small pipe to the daemon's mcp.sock, where the daemon runs their MCP sessions; scripts use sutradhar call, tRPC over the daemon's unix socket; the daemon talks tRPC through a native-messaging host to the extension in each browser; the extension acts in web pages; risky steps go to you through a notification and a Your turn card; real mouse and keyboard go through sway." width="900">
+  <img src="assets/diagrams/architecture.svg" alt="Architecture: agents talk MCP to sutradhar mcp, which is pranali, a small pipe to the daemon's mcp.sock, where the daemon runs their MCP sessions; scripts use sutradhar call, tRPC over the daemon's unix socket; the daemon talks tRPC through a native-messaging host to the extension in each browser; the extension acts in web pages; risky steps go to you through a notification and a Your turn card; real mouse and keyboard go through sway." width="900">
 </p>
 
 - **Agents** start `sutradhar mcp` (an MCP server on stdio); scripts use
   `sutradhar call`. Both are thin clients: each opens a **session** on the
-  daemon, named after the agent. `sutradhar mcp` is `sutradhar-mcp`, a small
-  Rust pipe: it sends the agent's name, then joins the agent's stdio to the
-  daemon's `mcp.sock`, where the daemon runs that agent's MCP server itself.
-  It starts the daemon if none runs; if it can't reach one (or `cargo` wasn't
-  there to build it) `sutradhar mcp` runs the MCP server in its own Node
-  process, as before. When the daemon restarts (an update), the pipe answers
-  calls it had with "sutradhar daemon restarted; try again", reconnects and
-  replays the agent's handshake, so the agent carries on without reconnecting.
+  daemon, named after the agent (`claude#3`; the MCP client's own name shows
+  beside it in `sutradhar status`). `sutradhar mcp` is
+  [pranali](https://github.com/Theyashsawarkar/pranali), the one small pipe
+  Vayu's tools share: it says hello (the agent's name and directory), then
+  joins the agent's stdio to the daemon's `mcp.sock`, where the daemon runs
+  that agent's MCP server itself. Relative paths the agent passes
+  (`screenshot` `save`, `page_pdf`, `record`, `downloads`) are relative to its
+  own directory. Without pranali, or with no daemon to reach at startup,
+  `sutradhar mcp` runs the MCP server in its own Node process. When the daemon
+  restarts (an update), pranali answers the calls it had with "sutradhar
+  restarted while this call was running: it may or may not have happened",
+  reconnects and replays the agent's handshake, so the agent carries on.
 - **The daemon** (`sutradhar.service`, one per login) is where everything
   meets: connected browsers, agent sessions and the tabs each owns, the risk
   gates, notifications, the action log, Stop, and the real mouse and keyboard.
   It listens on `$XDG_RUNTIME_DIR/sutradhar/sock` and, for MCP sessions,
-  `mcp.sock` beside it (both mode 0600, in a 0700 directory). Any client
-  starts it if it isn't running.
-- **The native-messaging host** (`sutradhar host`) is started by each browser
-  when the extension connects. It only pipes frames between the browser's
-  stdio and the daemon's socket, splitting any over the browsers' 1 MB limit,
-  and tells the daemon which program started it (Zen calls itself Firefox).
+  `mcp.sock` beside it (both mode 0600, in a 0700 directory it checks is
+  yours alone). systemd holds both sockets and starts the daemon on the first
+  connection; while it restarts, connections wait in the queue. A lock in that
+  directory keeps it to one daemon, which never removes a socket someone
+  still listens on. On `SIGTERM` it drains: new calls are refused ("this call
+  was not run, retry it"), the running ones get up to 20 s to finish.
+- **The native-messaging host** (`bin/sutradhar-host`) is started by each
+  browser when the extension connects: `sutradhar-host`, a std-only Rust relay
+  of about 2.4 MB (`crates/sutradhar-host`; the Node one, `sutradhar host`, is
+  the fallback and does exactly the same). It only pipes frames between the
+  browser's stdio and the daemon's socket, splitting any over the browsers'
+  1 MB limit, and tells the daemon which program started it (Zen calls itself
+  Firefox). It never starts the daemon: connecting does, through systemd.
 - **The extension** has a background part (tabs, windows, downloads,
   bookmarks, history, cookies, Chrome's debugger for trusted input and
   screenshots) and a **content script in every frame** (the snapshot and its
@@ -391,7 +411,7 @@ Files: the log is `~/.local/state/sutradhar/log.jsonl`; downloads saved by
 ### One call, end to end
 
 <p align="center">
-  <img src="assets/diagrams/act-flow.svg" alt="Sequence of one act call: agent to sutradhar mcp, through mcp.sock to its MCP session in the daemon, which checks the session owns the tab, tRPC through native messaging to the extension, which asks the page's content script to prepare the element and check its risk, sends the input, and returns the result back up as untrusted text." width="900">
+  <img src="assets/diagrams/act-flow.svg" alt="Sequence of one act call: agent to sutradhar mcp (pranali), through mcp.sock to its MCP session in the daemon, which checks the session owns the tab, tRPC through native messaging to the extension, which asks the page's content script to prepare the element and check its risk, sends the input, and returns the result back up as untrusted text." width="900">
 </p>
 
 1. The agent calls `act` with steps and a `why`.
@@ -466,8 +486,8 @@ pnpm build          # dist/: daemon bundle, dist/chrome, dist/firefox, the .xpi
 python3 scripts/diagrams.py   # the README's diagrams (assets/diagrams/*.svg)
 pnpm typecheck
 pnpm test           # unit tests (vitest)
-pnpm e2e            # Chromium, Zen and Firefox in throwaway headless profiles, plus MCP
-cargo test --manifest-path crates/sutradhar-mcp/Cargo.toml   # the MCP pipe (and cargo clippy)
+pnpm e2e            # Chromium, Zen and Firefox in throwaway headless profiles, MCP through pranali, the host
+cargo test --manifest-path crates/sutradhar-host/Cargo.toml   # the native host (and cargo clippy)
 tests/e2e/nested-sway.sh   # real mouse/keyboard in a private headless sway (never your desktop)
 ```
 

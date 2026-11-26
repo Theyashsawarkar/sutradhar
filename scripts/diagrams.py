@@ -113,7 +113,7 @@ class SVG:
 # ---------------------------------------------------------------- architecture
 def architecture():
     s = SVG(1000, 860, "sutradhar architecture",
-            "Agents talk MCP to sutradhar mcp, a small pipe to the daemon's mcp.sock, where the daemon runs their MCP sessions; "
+            "Agents talk MCP to sutradhar mcp, which is pranali, a small pipe to the daemon's mcp.sock, where the daemon runs their MCP sessions; "
             "scripts call the daemon over its unix socket with tRPC; the daemon talks tRPC "
             "to the extension in each browser through native messaging; the extension acts in web pages; risky steps "
             "go to the user through notifications and a Your turn card; real mouse and keyboard go through sway.")
@@ -133,7 +133,7 @@ def architecture():
     # Row 2: thin clients
     s.box(150, 240, 210, 52, "card", 12, "ring-accent")
     s.text(255, 262, "sutradhar mcp", "h", "middle")
-    s.text(255, 280, "a pipe (Rust) to mcp.sock", "s", "middle")
+    s.text(255, 280, "pranali: a pipe to mcp.sock", "s", "middle")
     s.box(420, 240, 210, 52, "card", 12, "ring-accent")
     s.text(525, 262, "sutradhar call", "h", "middle")
     s.text(525, 280, "the CLI, same API", "s", "middle")
@@ -145,7 +145,7 @@ def architecture():
     # Row 3: daemon
     s.box(30, 340, 690, 200, "panel", 16, "ring-accent")
     s.text(48, 366, "sutradhar daemon", "h")
-    s.text(186, 366, "systemd user service · one per login · sock + mcp.sock in $XDG_RUNTIME_DIR/sutradhar (0600)", "s")
+    s.text(186, 366, "systemd starts it on its sockets · one per login · sock + mcp.sock in $XDG_RUNTIME_DIR/sutradhar", "s")
     chips = [
         ("Sessions", "one per agent; its own tabs", "and tab group; locks"),
         ("Risk gates", "pay, passwords, OTPs:", "the user does it"),
@@ -184,8 +184,8 @@ def architecture():
     s.label(612, 566, "tRPC both ways: browserRouter ⇄ hub.*", "accent", "start", True)
     for x in (70, 295, 520):
         s.box(x, 584, 160, 40, "card", 10)
-        s.text(x + 80, 609, "sutradhar host", "mono", "middle")
-    s.lines(722, 596, ["native messaging (stdio):", "only this extension's ID", "may start the host;", "frames over 1 MB are split"], "s", 15)
+        s.text(x + 80, 609, "sutradhar-host", "mono", "middle")
+    s.lines(722, 596, ["native messaging (stdio):", "only this extension's ID", "may start the host (Rust);", "frames over 1 MB are split"], "s", 15)
     s.arrow("M150 624 L150 664", both=True)
     s.arrow("M375 624 L375 664", both=True)
     s.arrow("M600 624 L600 664", both=True)
@@ -270,7 +270,7 @@ def sequence(name, title, desc, actors, steps, height, notes=()):
 
 
 def act_flow():
-    A = [("Agent", "Claude, Codex…", ""), ("sutradhar mcp", "pipe to mcp.sock", "ring-accent"), ("Daemon", "sessions, gates", "ring-accent"),
+    A = [("Agent", "Claude, Codex…", ""), ("sutradhar mcp", "pranali → mcp.sock", "ring-accent"), ("Daemon", "sessions, gates", "ring-accent"),
          ("Extension", "background", ""), ("Page", "content script", "")]
     steps = [
         ("msg", 0, 1, 'act {steps: [click "Save"], why}', ""),
@@ -286,7 +286,7 @@ def act_flow():
         ("msg", 1, 0, "1. click: ok — clicked \"Save\"", "", "page text inside <untrusted>"),
     ]
     return sequence("act-flow.svg", "One act call, end to end",
-                    "An agent's act call goes through the sutradhar mcp pipe to its MCP session in the daemon to the extension, which prepares the "
+                    "An agent's act call goes through pranali (sutradhar mcp) to its MCP session in the daemon to the extension, which prepares the "
                     "element in the page, checks its risk, sends the input, and returns the result.", A, steps, 600)
 
 

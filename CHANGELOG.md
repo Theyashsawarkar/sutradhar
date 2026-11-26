@@ -2,18 +2,53 @@
 
 ## Unreleased
 
-- **`sutradhar mcp` is a 2 MB pipe, not a 78 MB Node process per agent.** The
-  daemon serves MCP sessions itself on `mcp.sock` (beside its socket, 0600);
-  `sutradhar-mcp` (Rust, `crates/sutradhar-mcp`, built by `pnpm build` when
-  `cargo` is there) sends the agent's name and joins stdio to it. Same tools,
-  names, gates and sessions. It starts the daemon when none runs, and falls
-  back to the old Node server when it can't reach one.
-- The pipe survives a daemon restart: calls the daemon had fail with
-  "sutradhar daemon restarted; try again", calls made meanwhile wait (up to
-  64), and it reconnects (100 ms doubling to 2 s, for up to a minute, starting
-  a daemon if none comes), replays the agent's `initialize` and `initialized`,
-  and carries on. No daemon for a minute: waiting calls fail, the next call
-  tries again. It exits only when the agent closes stdin.
+- **`sutradhar mcp` is pranali, a 2 MB pipe, not a 78 MB Node process per
+  agent.** The daemon serves MCP sessions itself on `mcp.sock` (beside its
+  socket, 0600) and speaks [pranali](https://github.com/Theyashsawarkar/pranali)'s
+  protocol there: a hello with the agent's name and directory, then MCP.
+  `sutradhar mcp` execs `pranali sutradhar --agent <name>` when pranali is on
+  PATH, falling back to the Node server (`sutradhar mcp --in-process`) when no
+  daemon can be reached; without pranali it is the Node server. Same tools,
+  names, gates and sessions. When the daemon restarts, pranali answers the
+  calls it had ("restarted while this call was running: it may or may not
+  have happened"), reconnects and replays the agent's handshake. For one
+  release the daemon also accepts the `{"name"}` preamble of the short-lived
+  `sutradhar-mcp` pipe, for sessions still running it; `crates/sutradhar-mcp`
+  is gone.
+- **systemd owns the daemon (socket activation).** `sutradhar install` adds
+  `sutradhar.socket` (the main socket: browsers' hosts, the CLI) and
+  `sutradhar-mcp.socket` (MCP sessions) to `sutradhar.service`; the daemon
+  takes their listeners and starts on the first connection, and connections
+  made while it restarts wait instead of failing. No pipe or host starts a
+  daemon any more, so `systemctl --user stop` really stops it (stop the
+  sockets too), and a crash no longer brings back one daemon per open agent.
+  Without the units (a dev checkout), the CLI and the Node MCP server still
+  start one.
+- **One daemon, and it never removes a live socket.** A lock file in the
+  runtime directory (`daemon.lock`, taken before either socket is touched)
+  keeps a second daemon from starting; a leftover socket is removed only when
+  connecting to it is refused (a crashed daemon's), never one systemd passed.
+- **Stopping drains.** On `SIGTERM` the daemon stops accepting, refuses new
+  calls with JSON-RPC error -32002 ("sutradhar is restarting; this call was
+  not run, retry it"), lets running calls finish for up to 20 s, then exits
+  (the unit allows 30). Connections are half-open: when an agent closes its
+  side, the answers it is owed still arrive (up to 10 s), in the Node server
+  too, which also now exits when the agent closes stdin.
+- **Never `/tmp`.** Without `XDG_RUNTIME_DIR`, the sockets live in
+  `$XDG_STATE_HOME/sutradhar/run`; the daemon, the CLI and the host refuse a
+  socket directory that isn't yours alone (owner, no group/other bits).
+- **The native-messaging host is Rust:** `crates/sutradhar-host` (std only,
+  about 400 KB on disk, 2.4 MB resident against 68 MB for the Node host),
+  built by `pnpm build` when `cargo` is there; `bin/sutradhar-host` runs it,
+  else the Node host. It relays byte for byte what the Node host does
+  (`JSON.stringify(JSON.parse(…))` toward the daemon, the same `part` frames
+  toward the browser), and an e2e test compares the two. Known, unchanged:
+  parts are cut at 512 Ki UTF-16 units, so a part of mostly non-ASCII text or
+  escapes can pass the browser's 1 MB limit.
+- Relative paths an agent passes (`screenshot` `save`, `page_pdf`, `record`,
+  `downloads` `read`) are relative to the agent's directory (pranali's hello,
+  or the CLI's); `sutradhar status` shows the MCP client's name beside each
+  session.
 - The website, closer to Vayu's own: the tool's screenshot blurred behind the page, a centred hero with the logo and the verse, the page you're on as the white pill, glass "On this page" and footer panels, releases as cards. No glow behind the logo, no coloured line beside the verse.
 - **Spatial look** in the browser panel: graphite, rounder cards, near-white where you act, no all-caps headings.
 - The website has Vayu's Spatial look: graphite glass, a floating navigation bar, near-white for links and the main button, and the tool's own colour only as its signature (the logo's glow, the shloka's line, the release dots). No more all-caps labels.

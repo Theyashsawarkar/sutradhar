@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 860" width="1000" height="860" role="img" aria-labelledby="t d">
   <title id="t">sutradhar architecture</title>
-  <desc id="d">Agents talk MCP to sutradhar mcp, a small pipe to the daemon&#x27;s mcp.sock, where the daemon runs their MCP sessions; scripts call the daemon over its unix socket with tRPC; the daemon talks tRPC to the extension in each browser through native messaging; the extension acts in web pages; risky steps go to the user through notifications and a Your turn card; real mouse and keyboard go through sway.</desc>
+  <desc id="d">Agents talk MCP to sutradhar mcp, which is pranali, a small pipe to the daemon&#x27;s mcp.sock, where the daemon runs their MCP sessions; scripts call the daemon over its unix socket with tRPC; the daemon talks tRPC to the extension in each browser through native messaging; the extension acts in web pages; risky steps go to the user through notifications and a Your turn card; real mouse and keyboard go through sway.</desc>
 
   <style>
     text { font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans", sans-serif; }
@@ -65,7 +65,7 @@
   <text class="s " x="510" y="164" text-anchor="start">sutradhar call TOOL &#x27;{json}&#x27;</text>
   <rect class="card ring-accent" x="150" y="240" width="210" height="52" rx="12"/>
   <text class="h " x="255" y="262" text-anchor="middle">sutradhar mcp</text>
-  <text class="s " x="255" y="280" text-anchor="middle">a pipe (Rust) to mcp.sock</text>
+  <text class="s " x="255" y="280" text-anchor="middle">pranali: a pipe to mcp.sock</text>
   <rect class="card ring-accent" x="420" y="240" width="210" height="52" rx="12"/>
   <text class="h " x="525" y="262" text-anchor="middle">sutradhar call</text>
   <text class="s " x="525" y="280" text-anchor="middle">the CLI, same API</text>
@@ -75,7 +75,7 @@
   <text class="lbl" x="120" y="220" text-anchor="start">MCP (stdio)</text>
   <rect class="panel ring-accent" x="30" y="340" width="690" height="200" rx="16"/>
   <text class="h " x="48" y="366" text-anchor="start">sutradhar daemon</text>
-  <text class="s " x="186" y="366" text-anchor="start">systemd user service · one per login · sock + mcp.sock in $XDG_RUNTIME_DIR/sutradhar (0600)</text>
+  <text class="s " x="186" y="366" text-anchor="start">systemd starts it on its sockets · one per login · sock + mcp.sock in $XDG_RUNTIME_DIR/sutradhar</text>
   <rect class="card " x="48" y="382" width="208" height="64" rx="12"/>
   <text class="h " x="62" y="404" text-anchor="start">Sessions</text>
   <text class="s " x="62" y="422" text-anchor="start">one per agent; its own tabs</text>
@@ -127,14 +127,14 @@
   <path class="edge accent " d="M600 540 L600 584" marker-end="url(#aa)" marker-start="url(#aa)"/>
   <text class="lbl lbl-accent" x="612" y="566" text-anchor="start" font-weight="650">tRPC both ways: browserRouter ⇄ hub.*</text>
   <rect class="card " x="70" y="584" width="160" height="40" rx="10"/>
-  <text class="mono " x="150" y="609" text-anchor="middle">sutradhar host</text>
+  <text class="mono " x="150" y="609" text-anchor="middle">sutradhar-host</text>
   <rect class="card " x="295" y="584" width="160" height="40" rx="10"/>
-  <text class="mono " x="375" y="609" text-anchor="middle">sutradhar host</text>
+  <text class="mono " x="375" y="609" text-anchor="middle">sutradhar-host</text>
   <rect class="card " x="520" y="584" width="160" height="40" rx="10"/>
-  <text class="mono " x="600" y="609" text-anchor="middle">sutradhar host</text>
+  <text class="mono " x="600" y="609" text-anchor="middle">sutradhar-host</text>
   <text class="s " x="722" y="596" text-anchor="start">native messaging (stdio):</text>
   <text class="s " x="722" y="611" text-anchor="start">only this extension&#x27;s ID</text>
-  <text class="s " x="722" y="626" text-anchor="start">may start the host;</text>
+  <text class="s " x="722" y="626" text-anchor="start">may start the host (Rust);</text>
   <text class="s " x="722" y="641" text-anchor="start">frames over 1 MB are split</text>
   <path class="edge  " d="M150 624 L150 664" marker-end="url(#a)" marker-start="url(#a)"/>
   <path class="edge  " d="M375 624 L375 664" marker-end="url(#a)" marker-start="url(#a)"/>
