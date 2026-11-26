@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ROOT, sandbox, startDaemon, until } from './harness.mjs';
 
@@ -80,9 +80,62 @@ test('two agents through the pipe: one daemon, their own sessions, the old tools
   assert.match(status, /beta#/);
   assert.equal((await b.call('log')).result.isError, undefined);
 
-  // The daemon going away ends the pipe.
-  d.kill();
-  assert.equal(await b.exited, 0);
+  // The agent closing stdin ends the pipe.
+  assert.equal(await b.close(), 0);
+});
+
+/** The daemon's pid, as `sutradhar status` tells it (null when none runs). */
+const daemonPid = (env) => +(node(['status'], env).stdout.match(/pid (\d+)/)?.[1] ?? 0) || null;
+
+test('a daemon restart mid-session: the call in flight fails, the next one works, no new initialize', { skip, timeout: 30000 }, async (t) => {
+  const sb = sandbox();
+  const d = startDaemon(sb);
+  await until(() => existsSync(join(sb.dir, 'mcp.sock')), 5000, 'mcp.sock');
+  const c = mcp(PIPE, ['--name', 'keeper'], sb.env);
+  let d2;
+  t.after(() => { c.proc.kill(); d.proc.kill('SIGKILL'); d2?.kill(); const p = daemonPid(sb.env); if (p) process.kill(p); sb.cleanup(); });
+  await c.init();
+  assert.match((await c.call('log')).result.content[0].text, /"session":"keeper#\d+"/);
+
+  // Frozen, the daemon has the call but never answers; then it dies.
+  d.proc.kill('SIGSTOP');
+  const inFlight = c.call('log');
+  await new Promise((r) => setTimeout(r, 300));
+  d.proc.kill('SIGKILL');
+  const lost = await inFlight;
+  assert.equal(lost.error.code, -32000);
+  assert.match(lost.error.message, /sutradhar daemon restarted; try again/);
+
+  // The service comes back (as systemd would restart it); the same client carries on.
+  d2 = startDaemon(sb);
+  const again = await c.call('log');
+  assert.equal(again.result.isError, undefined);
+  assert.match(again.result.content[0].text, /"session":"keeper#\d+"/);
+  const tools = await c.rpc('tools/list', {});
+  assert.ok(tools.result.tools.some((x) => x.name === 'navigate'));
+  assert.match(node(['status'], sb.env).stdout, /keeper#/);
+  assert.equal(c.proc.exitCode, null);
+});
+
+test('no daemon for a whole round: waiting calls fail, the next call tries again', { skip, timeout: 30000 }, async (t) => {
+  const sb = sandbox();
+  const d = startDaemon(sb);
+  await until(() => existsSync(join(sb.dir, 'mcp.sock')), 5000, 'mcp.sock');
+  const c = mcp(PIPE, ['--name', 'patient'], { ...sb.env, SUTRADHAR_MCP_RECONNECT_MS: '4000' });
+  t.after(() => { chmodSync(sb.dir, 0o700); c.proc.kill(); d.kill(); const p = daemonPid(sb.env); if (p) process.kill(p); sb.cleanup(); });
+  await c.init();
+  // The daemon dies, and no new one can take its socket (the directory is read-only).
+  const gone = new Promise((r) => d.proc.once('exit', r));
+  d.proc.kill('SIGKILL');
+  await gone;
+  chmodSync(sb.dir, 0o500);
+  const queued = await c.call('log');
+  assert.match(queued.error.message, /sutradhar daemon restarted; try again/);
+  assert.equal(c.proc.exitCode, null);
+  // Fixed: the next call starts a daemon and gets through.
+  chmodSync(sb.dir, 0o700);
+  const next = await c.call('log');
+  assert.match(next.result.content[0].text, /"session":"patient#\d+"/);
 });
 
 test('the pipe starts a daemon when none runs', { skip, timeout: 30000 }, async (t) => {

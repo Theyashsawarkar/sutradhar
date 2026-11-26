@@ -359,7 +359,7 @@ Files: the log is `~/.local/state/sutradhar/log.jsonl`; downloads saved by
 ### The pieces
 
 <p align="center">
-  <img src="assets/diagrams/architecture.svg" alt="Architecture: agents talk MCP to sutradhar mcp, which talks tRPC over a unix socket to the daemon; the daemon talks tRPC through a native-messaging host to the extension in each browser; the extension acts in web pages; risky steps go to you through a notification and a Your turn card; real mouse and keyboard go through sway." width="900">
+  <img src="assets/diagrams/architecture.svg" alt="Architecture: agents talk MCP to sutradhar mcp, a small pipe to the daemon's mcp.sock, where the daemon runs their MCP sessions; scripts use sutradhar call, tRPC over the daemon's unix socket; the daemon talks tRPC through a native-messaging host to the extension in each browser; the extension acts in web pages; risky steps go to you through a notification and a Your turn card; real mouse and keyboard go through sway." width="900">
 </p>
 
 - **Agents** start `sutradhar mcp` (an MCP server on stdio); scripts use
@@ -369,7 +369,9 @@ Files: the log is `~/.local/state/sutradhar/log.jsonl`; downloads saved by
   daemon's `mcp.sock`, where the daemon runs that agent's MCP server itself.
   It starts the daemon if none runs; if it can't reach one (or `cargo` wasn't
   there to build it) `sutradhar mcp` runs the MCP server in its own Node
-  process, as before.
+  process, as before. When the daemon restarts (an update), the pipe answers
+  calls it had with "sutradhar daemon restarted; try again", reconnects and
+  replays the agent's handshake, so the agent carries on without reconnecting.
 - **The daemon** (`sutradhar.service`, one per login) is where everything
   meets: connected browsers, agent sessions and the tabs each owns, the risk
   gates, notifications, the action log, Stop, and the real mouse and keyboard.
@@ -389,7 +391,7 @@ Files: the log is `~/.local/state/sutradhar/log.jsonl`; downloads saved by
 ### One call, end to end
 
 <p align="center">
-  <img src="assets/diagrams/act-flow.svg" alt="Sequence of one act call: agent to sutradhar mcp, tRPC to the daemon, which checks the session owns the tab, tRPC through native messaging to the extension, which asks the page's content script to prepare the element and check its risk, sends the input, and returns the result back up as untrusted text." width="900">
+  <img src="assets/diagrams/act-flow.svg" alt="Sequence of one act call: agent to sutradhar mcp, through mcp.sock to its MCP session in the daemon, which checks the session owns the tab, tRPC through native messaging to the extension, which asks the page's content script to prepare the element and check its risk, sends the input, and returns the result back up as untrusted text." width="900">
 </p>
 
 1. The agent calls `act` with steps and a `why`.
