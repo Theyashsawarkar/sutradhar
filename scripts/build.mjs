@@ -1,6 +1,6 @@
 // Builds everything into dist/:
 //   dist/sutradhar.mjs            the daemon/host/MCP/CLI (one file, Node 22+)
-//   dist/sutradhar-mcp            `sutradhar mcp`: a small Rust pipe to the daemon (when cargo is here)
+//   dist/sutradhar-host           the native-messaging host in Rust (when cargo is here; else bin/sutradhar-host runs node)
 //   dist/chrome/                  the extension for Chrome, Chromium, Brave (MV3)
 //   dist/firefox/                 the extension for Firefox and Zen (MV2, persistent background)
 //   dist/sutradhar-firefox.xpi    the same, zipped for "Install Add-on From File"
@@ -27,16 +27,17 @@ await build({
   logLevel: 'warning',
 });
 
-// ---------------------------------------------------------------- MCP pipe
-// Optional: without cargo, bin/sutradhar runs `mcp` in node, as before.
+// ---------------------------------------------------------------- native host
+// Optional: without cargo, bin/sutradhar-host runs the same relay in node.
 {
-  const crate = join(root, 'crates', 'sutradhar-mcp');
+  const crate = join(root, 'crates', 'sutradhar-host');
   let cargo = true;
   try { execFileSync('cargo', ['--version'], { stdio: 'ignore' }); } catch { cargo = false; }
   if (cargo) {
-    execFileSync('cargo', ['build', '--release', '--locked', '--quiet', '--manifest-path', join(crate, 'Cargo.toml')], { stdio: 'inherit' });
-    cpSync(join(crate, 'target', 'release', 'sutradhar-mcp'), join(dist, 'sutradhar-mcp'));
-  } else console.warn('cargo not found: skipping dist/sutradhar-mcp (sutradhar mcp runs in node)');
+    const target = join(crate, 'target');
+    execFileSync('cargo', ['build', '--release', '--locked', '--quiet', '--manifest-path', join(crate, 'Cargo.toml'), '--target-dir', target], { stdio: 'inherit' });
+    cpSync(join(target, 'release', 'sutradhar-host'), join(dist, 'sutradhar-host'));
+  } else console.warn('cargo not found: skipping dist/sutradhar-host (browsers get the node host)');
 }
 
 // ---------------------------------------------------------------- extension

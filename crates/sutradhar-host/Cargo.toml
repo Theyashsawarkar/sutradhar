@@ -1,9 +1,9 @@
 [package]
-name = "sutradhar-mcp"
+name = "sutradhar-host"
 # Released with sutradhar (package.json has the version); the binary never reports one.
 version = "0.0.0"
 edition = "2024"
-description = "`sutradhar mcp` in a few hundred KB: joins an agent's stdio to the daemon's MCP socket"
+description = "sutradhar's native-messaging host: relays a browser's stdio to the daemon's socket in a few hundred KB"
 license = "MIT"
 publish = false
 

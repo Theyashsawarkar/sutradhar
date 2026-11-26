@@ -1,5 +1,7 @@
 #!/bin/sh
 # Native-messaging host: browsers start this (they pass their own arguments,
-# which are ignored) and talk to the daemon through it.
+# which are ignored) and talk to the daemon through it. The small Rust relay
+# (crates/sutradhar-host) when it's built, else the same relay in Node.
 here=$(dirname "$(readlink -f "$0")")
+if [ -x "$here/../dist/sutradhar-host" ]; then exec "$here/../dist/sutradhar-host"; fi
 exec node "$here/../dist/sutradhar.mjs" host
