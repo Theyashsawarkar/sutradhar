@@ -29,7 +29,7 @@ const HELP = `sutradhar ${VERSION}: lets AI agents use your real browser (Chrome
                                 native-messaging hosts for every browser + the user service
   sutradhar uninstall
   sutradhar doctor              check the install
-  sutradhar mcp [--name NAME]   MCP server on stdio (for agents)
+  sutradhar mcp [--name NAME]   MCP server on stdio (for agents; pranali when installed)
   sutradhar daemon              run the daemon in the foreground
   sutradhar host                native-messaging host (browsers start it)
   sutradhar version`;
@@ -49,7 +49,8 @@ async function main(argv: string[]) {
     case 'daemon': { const { runDaemon } = await import('./daemon.ts'); await runDaemon(); return; }
     case 'host': { const { runHost } = await import('./host.ts'); await runHost(); return; }
     case 'mcp': {
-      // Normally the sutradhar-mcp pipe answers `sutradhar mcp` (bin/sutradhar); this is its fallback.
+      // Normally bin/sutradhar runs pranali for `sutradhar mcp`; this is the in-process server
+      // (pranali's --fallback, or agents without pranali). `--in-process` is accepted and implied.
       const { agentName, runMcp } = await import('./mcp.ts'); await runMcp(agentName(rest)); return;
     }
     case 'call': {
@@ -60,7 +61,7 @@ async function main(argv: string[]) {
       if (!toolList().some((x) => x.name === tool)) throw new Error(`no tool "${tool}"; see sutradhar tools`);
       // One session per terminal (or per SUTRADHAR_SESSION), kept between calls, so tabs stay yours.
       const key = process.env.SUTRADHAR_SESSION || `cli-${process.ppid}`;
-      const { client, socket } = await agentClient(process.env.SUTRADHAR_AGENT || 'cli', key);
+      const { client, socket } = await agentClient(process.env.SUTRADHAR_AGENT || 'cli', key, process.cwd());
       const args = json ? JSON.parse(json) : {};
       const type = ((agentRouter as any)._def.procedures[tool])._def.type;
       const r = type === 'query' ? await (client as any)[tool].query(args) : await (client as any)[tool].mutate(args);
@@ -85,7 +86,7 @@ async function main(argv: string[]) {
       console.log(`browsers: ${s.browsers.length ? '' : 'none connected'}`);
       for (const b of s.browsers) console.log(`  ${b.id}: ${b.name} ${b.version}, extension ${b.extension}`);
       console.log(`agents: ${s.sessions.length ? '' : 'none'}`);
-      for (const x of s.sessions) console.log(`  ${x.id}${x.stopped ? ' (stopped)' : ''}: ${x.browser ?? '-'} tabs ${x.tabs.join(', ') || '-'}`);
+      for (const x of s.sessions) console.log(`  ${x.id}${x.client ? ` (${x.client})` : ''}${x.stopped ? ' (stopped)' : ''}: ${x.browser ?? '-'} tabs ${x.tabs.join(', ') || '-'}`);
       if (s.paused) console.log('paused: you have control (sutradhar handback)');
       if (s.gates.length) console.log('waiting on you:');
       for (const g of s.gates) console.log(`  ${g.kind} for ${g.session}: ${g.title} (${g.url})`);
@@ -142,7 +143,16 @@ async function main(argv: string[]) {
       check(existsSync(join(r, 'dist', 'sutradhar.mjs')), 'built', 'pnpm build');
       check(existsSync(join(r, 'dist', 'chrome', 'manifest.json')), 'Chrome extension built (dist/chrome)', 'pnpm build');
       check(existsSync(join(r, 'dist', 'sutradhar-firefox.xpi')), 'Firefox/Zen extension built (dist/sutradhar-firefox.xpi)', 'pnpm build');
-      check(existsSync(join(r, 'dist', 'sutradhar-mcp')), 'MCP pipe built (dist/sutradhar-mcp)', 'install Rust (cargo), then pnpm build; until then each agent\'s sutradhar mcp is a Node process');
+      check(existsSync(join(r, 'dist', 'sutradhar-host')), 'native host built (dist/sutradhar-host)', 'install Rust (cargo), then pnpm build; until then each browser\'s host is a Node process');
+      {
+        const { execFileSync } = await import('node:child_process');
+        let ok = true; try { execFileSync('sh', ['-c', 'command -v pranali'], { stdio: 'ignore' }); } catch { ok = false; }
+        check(ok, 'pranali on PATH (sutradhar mcp is a small pipe)', 'install pranali; until then each agent\'s sutradhar mcp is a Node process');
+        for (const unit of ['sutradhar.socket', 'sutradhar-mcp.socket']) {
+          let on = true; try { execFileSync('systemctl', ['--user', 'is-active', '--quiet', unit], { stdio: 'ignore' }); } catch { on = false; }
+          check(on, `${unit} listening`, 'sutradhar install');
+        }
+      }
       let any = false;
       for (const [n, d] of Object.entries({ ...CHROMIUM_DIRS, ...GECKO_DIRS })) {
         const f = join(d, `${HOST_NAME}.json`);
@@ -150,7 +160,7 @@ async function main(argv: string[]) {
       }
       check(any, 'native hosts installed', 'sutradhar install');
       const a = await admin();
-      check(!!a, `daemon running (${paths.socket})`, 'systemctl --user start sutradhar (or any agent call starts it)');
+      check(!!a, `daemon running (${paths.socket})`, 'systemctl --user start sutradhar (or connect: sutradhar.socket starts it)');
       if (a) {
         const s = await a.client.status.query();
         check(s.browsers.length > 0, `browsers connected: ${s.browsers.map((b) => b.id).join(', ') || 'none'}`, 'add the extension (sutradhar install prints how) and open the browser');

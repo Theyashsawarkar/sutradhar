@@ -25,6 +25,10 @@ export interface Session {
   /** Set when the user pressed Stop after this session started. */
   stopped: boolean;
   calls: Set<AbortController>;
+  /** The agent's working directory, for relative paths it passes. */
+  cwd?: string;
+  /** The MCP client's name from its initialize (clientInfo), e.g. claude-code. */
+  client?: string;
   /** Set for CLI sessions: they survive between calls (see daemon.ts). */
   key?: string;
   detachedAt?: number;
@@ -54,6 +58,8 @@ export interface Conn {
   sessionId?: string;
   /** The browser executable, as the native host saw its parent. */
   exe?: string;
+  /** The agent's working directory (pranali's hello, or the CLI's session_start). */
+  cwd?: string;
 }
 
 export const D = {

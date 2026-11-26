@@ -4,7 +4,7 @@
 import { execFile, spawn } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { extname, join } from 'node:path';
+import { extname, isAbsolute, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
@@ -30,7 +30,7 @@ export function sessionFor(ctx: Ctx, name?: string): Session {
   if (!s) {
     const base = (name || 'agent').replace(/[^\w.-]/g, '').slice(0, 24) || 'agent';
     const id = `${base}#${++D.seq}`;
-    s = { id, name: base, tabs: new Set(), started: Date.now(), stopped: false, calls: new Set() };
+    s = { id, name: base, tabs: new Set(), started: Date.now(), stopped: false, calls: new Set(), cwd: ctx.conn.cwd };
     D.sessions.set(id, s);
     ctx.conn.sessionId = id;
     log({ session: id, event: 'session-start' });
@@ -38,6 +38,9 @@ export function sessionFor(ctx: Ctx, name?: string): Session {
   if (s.stopped) throw new TRPCError({ code: 'FORBIDDEN', message: 'The user pressed Stop. Ask them before you carry on; they can resume from the extension panel or with `sutradhar resume`.' });
   return s;
 }
+
+/** A path the agent gave: relative ones are relative to the agent's directory (from pranali's hello, or the CLI's). */
+const here = (s: Session, p: string) => (isAbsolute(p) || !s.cwd ? p : resolve(s.cwd, p));
 
 function browserFor(s: Session): BrowserConn {
   if (s.browserId) {
@@ -108,14 +111,17 @@ const tabLine = (x: any, s: Session) => `${x.id}${x.active ? '*' : ''}  ${x.agen
 // ------------------------------------------------------------------ the tools
 export const agentRouter = t.router({
   session_start: agentProc.meta({ description: 'internal: name this session' })
-    .input(z.object({ name: z.string(), key: z.string().optional() })).mutation(({ ctx, input }) => {
+    .input(z.object({ name: z.string(), key: z.string().optional(), cwd: z.string().optional(), client: z.string().optional() })).mutation(({ ctx, input }) => {
+      if (input.cwd && isAbsolute(input.cwd) && !ctx.conn.cwd) ctx.conn.cwd = input.cwd;
       if (ctx.conn.sessionId) { const s = D.sessions.get(ctx.conn.sessionId); if (s) return s.id; }
       // A keyed session (the CLI's) outlives its connection: the next call with the same key picks it up, tabs and all.
       if (input.key) {
         const old = [...D.sessions.values()].find((x) => x.key === input.key);
-        if (old) { ctx.conn.sessionId = old.id; old.detachedAt = undefined; return old.id; }
+        if (old) { ctx.conn.sessionId = old.id; old.detachedAt = undefined; old.cwd = ctx.conn.cwd ?? old.cwd; return old.id; }
       }
       const s = sessionFor(ctx, input.name);
+      // The MCP client's own name (clientInfo), shown beside the session's.
+      if (input.client) s.client = input.client.slice(0, 64);
       if (input.key) s.key = input.key;
       return s.id;
     }),
@@ -220,9 +226,10 @@ export const agentRouter = t.router({
     .query(async ({ ctx, input }) => {
       const s = sessionFor(ctx); const { b, tab } = await tabFor(s, input.tab);
       const img = await call(s, 'screenshot', { tab }, () => b.client.page.screenshot.query({ tab, full: input.full, ref: input.ref, format: input.format ?? 'jpeg', quality: 80 }));
-      if (input.save) writeFileSync(input.save, Buffer.from(img.data, 'base64'));
+      const save = input.save && here(s, input.save);
+      if (save) writeFileSync(save, Buffer.from(img.data, 'base64'));
       frame(tab, img.data);
-      return { image: img, note: input.save ? `saved to ${input.save}` : undefined };
+      return { image: img, note: save ? `saved to ${save}` : undefined };
     }),
 
   find: agentProc.meta({ description: 'Find elements by visible text, accessible name, role or CSS selector. Returns refs for act.', untrusted: true })
@@ -323,7 +330,7 @@ Payments, card/bank details, passwords, OTPs, CAPTCHAs and buy/pay/transfer/dele
       if (input.action === 'list') return (await b.client.downloads.list.query({ limit: 20 })).map(fmt).join('\n') || 'no downloads';
       if (input.action === 'start') { if (!input.url) throw new TRPCError({ code: 'BAD_REQUEST', message: 'url needed' }); const r = await b.client.downloads.start.mutate({ url: input.url }); return `started download ${r.id}`; }
       if (input.action === 'wait') return fmt(await b.client.downloads.wait.query({ id: input.id, timeout: input.timeout }));
-      let path = input.path;
+      let path = input.path && here(s, input.path);
       if (!path) { const [d] = await b.client.downloads.list.query({ limit: 1 }); path = input.id ? (await b.client.downloads.list.query({ limit: 50 })).find((x: any) => x.id === input.id)?.filename : d?.filename; }
       if (!path) throw new TRPCError({ code: 'NOT_FOUND', message: 'no such download' });
       const st = statSync(path);
@@ -339,7 +346,7 @@ Payments, card/bank details, passwords, OTPs, CAPTCHAs and buy/pay/transfer/dele
     const name = (info.title || 'page').replace(/[^\w.-]+/g, '-').slice(0, 60) + '.pdf';
     const r = await b.client.page.pdf.mutate({ tab, name });
     if ('data' in r && r.data) {
-      const path = input.path ?? join(paths.downloads, name);
+      const path = input.path ? here(s, input.path) : join(paths.downloads, name);
       mkdirSync(join(path, '..'), { recursive: true });
       writeFileSync(path, Buffer.from(r.data, 'base64'));
       return `saved ${path}`;
@@ -403,7 +410,7 @@ Payments, card/bank details, passwords, OTPs, CAPTCHAs and buy/pay/transfer/dele
     .mutation(async ({ ctx, input }) => {
       const s = sessionFor(ctx); const { b, tab } = await tabFor(s, input.tab);
       if (input.action === 'start') { startRecording(b, tab, input.format ?? 'gif'); return 'recording (two frames a second, and one after every act)'; }
-      try { const r = await stopRecording(input.path); return `saved ${r.path} (${r.frames} frames)`; }
+      try { const r = await stopRecording(input.path && here(s, input.path)); return `saved ${r.path} (${r.frames} frames)`; }
       catch (e) { throw new TRPCError({ code: 'PRECONDITION_FAILED', message: (e as Error).message }); }
     }),
 

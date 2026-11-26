@@ -1,13 +1,17 @@
-// The native-messaging host: started by the browser, a pipe between the
-// browser (4-byte length + JSON on stdio) and the daemon (JSON lines on the
-// unix socket). Frames too big for the browser's 1 MB limit are cut into parts.
+// The native-messaging host in Node: started by the browser, a pipe between
+// the browser (4-byte length + JSON on stdio) and the daemon (JSON lines on
+// the unix socket). Frames too big for the browser's 1 MB limit are cut into
+// parts. Normally crates/sutradhar-host does this (bin/sutradhar-host runs
+// it when built); this is the fallback, and both behave the same. Neither
+// starts a daemon: systemd does (sutradhar.socket), and without it the
+// extension tries again later.
 
 import { createLineReader, splitFrame } from '../../protocol/src/framing.ts';
 import { readlinkSync } from 'node:fs';
-import { connectOrStart } from './client.ts';
+import { connectRaw } from './client.ts';
 
 export async function runHost() {
-  const sock = await connectOrStart();
+  const sock = await connectRaw();
   const out = process.stdout;
   // Tell the daemon which program started us: Zen calls itself "Firefox" to extensions.
   let exe = '';

@@ -64,32 +64,84 @@ export function install(opts: { service?: boolean } = {}) {
   if (opts.service !== false) {
     const unitDir = join(H, '.config/systemd/user');
     mkdirSync(unitDir, { recursive: true });
-    writeFileSync(join(unitDir, 'sutradhar.service'), `[Unit]
-Description=sutradhar: browser hands for AI agents
-After=graphical-session.target
-PartOf=graphical-session.target
-
-[Service]
-ExecStart=${join(r, 'bin', 'sutradhar')} daemon
-Restart=on-failure
-RestartSec=2
-
-[Install]
-WantedBy=graphical-session.target
-`);
+    for (const [name, text] of Object.entries(units(join(r, 'bin', 'sutradhar')))) writeFileSync(join(unitDir, name), text);
+    const sys = (...args: string[]) => execFileSync('systemctl', ['--user', ...args], { stdio: 'ignore' });
     try {
-      execFileSync('systemctl', ['--user', 'daemon-reload']);
-      execFileSync('systemctl', ['--user', 'enable', '--now', 'sutradhar.service']);
-      out.push('service: sutradhar.service enabled');
+      sys('daemon-reload');
+      // A daemon that bound the sockets itself must go first, so systemd can listen there;
+      // it drains (in-flight calls finish) and pranali reconnects to the new one.
+      if (!activeQuiet('sutradhar.socket')) try { sys('stop', 'sutradhar.service'); } catch { /* not running */ }
+      sys('enable', '--now', ...SOCKET_UNITS);
+      sys('enable', '--now', 'sutradhar.service');
+      out.push(`service: ${SOCKET_UNITS.join(', ')} and sutradhar.service enabled`);
     } catch (e) { out.push(`service: could not enable (${(e as Error).message.split('\n')[0]})`); }
   }
   return out;
 }
 
+export const SOCKET_UNITS = ['sutradhar.socket', 'sutradhar-mcp.socket'];
+
+function activeQuiet(unit: string) {
+  try { execFileSync('systemctl', ['--user', 'is-active', '--quiet', unit], { stdio: 'ignore' }); return true; } catch { return false; }
+}
+
+/**
+ * The user units. The daemon's two sockets are systemd's (socket activation):
+ * the first connection (a browser's host, pranali, `sutradhar call`) starts
+ * the daemon, connections made while it restarts wait in the queue instead of
+ * failing, and nothing but systemd ever starts it, so `systemctl --user stop`
+ * (of the sockets and the service) really stops it.
+ */
+export function units(bin: string): Record<string, string> {
+  return {
+    'sutradhar.service': `[Unit]
+Description=sutradhar: browser hands for AI agents
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+ExecStart=${bin} daemon
+Restart=on-failure
+RestartSec=2
+# SIGTERM drains: no new calls, the running ones get up to 20 s.
+TimeoutStopSec=30
+
+[Install]
+WantedBy=graphical-session.target
+`,
+    // The main socket: browsers' native hosts, `sutradhar call`, `sutradhar mcp --in-process`.
+    'sutradhar.socket': `[Unit]
+Description=sutradhar: the daemon's socket (browsers and the CLI)
+
+[Socket]
+ListenStream=%t/sutradhar/sock
+SocketMode=0600
+DirectoryMode=0700
+Service=sutradhar.service
+
+[Install]
+WantedBy=sockets.target
+`,
+    // pranali's (pranali/docs/PROTOCOL.md): MCP sessions.
+    'sutradhar-mcp.socket': `[Unit]
+Description=sutradhar: MCP sessions for agents (pranali)
+
+[Socket]
+ListenStream=%t/sutradhar/mcp.sock
+SocketMode=0600
+DirectoryMode=0700
+Service=sutradhar.service
+
+[Install]
+WantedBy=sockets.target
+`,
+  };
+}
+
 export function uninstall() {
   for (const dir of [...Object.values(CHROMIUM_DIRS), ...Object.values(GECKO_DIRS)]) rmSync(join(dir, `${HOST_NAME}.json`), { force: true });
-  try { execFileSync('systemctl', ['--user', 'disable', '--now', 'sutradhar.service'], { stdio: 'ignore' }); } catch { /* */ }
-  rmSync(join(H, '.config/systemd/user/sutradhar.service'), { force: true });
+  try { execFileSync('systemctl', ['--user', 'disable', '--now', ...SOCKET_UNITS, 'sutradhar.service'], { stdio: 'ignore' }); } catch { /* */ }
+  for (const u of [...SOCKET_UNITS, 'sutradhar.service']) rmSync(join(H, '.config/systemd/user', u), { force: true });
 }
 
 export function extensionHelp() {

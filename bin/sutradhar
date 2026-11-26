@@ -1,10 +1,30 @@
 #!/bin/sh
 # sutradhar: the daemon, the MCP server and the command line (see --help).
 here=$(dirname "$(readlink -f "$0")")
-# `sutradhar mcp` is the small sutradhar-mcp pipe when it's built (the daemon
-# serves the MCP session); it falls back to node itself.
-if [ "$1" = mcp ] && [ -x "$here/../dist/sutradhar-mcp" ]; then
+bundle="$here/../dist/sutradhar.mjs"
+# `sutradhar mcp` is pranali when it's installed: a small pipe to the MCP
+# session the daemon serves on mcp.sock (pranali/docs/PROTOCOL.md). Without a
+# daemon to reach at startup it runs the Node server in process (--fallback);
+# without pranali, so does this.
+case " $* " in *" --in-process "*) inproc=1 ;; *) inproc= ;; esac
+if [ "$1" = mcp ] && [ -z "$inproc" ] && command -v pranali >/dev/null 2>&1; then
   shift
-  exec "$here/../dist/sutradhar-mcp" "$@"
+  name=
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --name) name=${2-}; [ $# -ge 2 ] && shift; shift ;;
+      --name=*) name=${1#--name=}; shift ;;
+      *) shift ;;
+    esac
+  done
+  # Same guess as mcp.ts agentName().
+  if [ -z "$name" ]; then
+    if [ -n "$SUTRADHAR_AGENT" ]; then name=$SUTRADHAR_AGENT
+    elif [ -n "$CLAUDECODE" ]; then name=claude
+    elif [ -n "$CODEX_HOME" ]; then name=codex
+    else name=agent
+    fi
+  fi
+  exec pranali sutradhar --agent "$name" --fallback "$(command -v node || echo node)" "$bundle" mcp --in-process --name "$name"
 fi
-exec node "$here/../dist/sutradhar.mjs" "$@"
+exec node "$bundle" "$@"

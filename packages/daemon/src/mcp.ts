@@ -1,9 +1,9 @@
 // The MCP server. Its tools are the agent router's procedures, so the tool
 // list can't drift from the code. It runs in two places:
 // - in the daemon, one per connection to mcp.sock (what `sutradhar mcp`
-//   normally is: the small sutradhar-mcp pipe joins stdio to that socket);
-// - in its own Node process (`sutradhar mcp` when the pipe isn't built or
-//   can't reach a daemon), calling the daemon over its agent socket.
+//   normally is: pranali joins the agent's stdio to that socket);
+// - in its own Node process (`sutradhar mcp --in-process`, when pranali isn't
+//   installed or no daemon can be reached), calling the daemon over its agent socket.
 
 import type { Socket } from 'node:net';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -49,8 +49,13 @@ export function agentName(args: string[], env: NodeJS.ProcessEnv = process.env) 
 
 type AgentApi = TRPCClient<AgentRouter>;
 
+export const RESTARTING = 'sutradhar is restarting; this call was not run, retry it';
+
+/** Set while the daemon drains (SIGTERM): calls that arrive now are refused, not started. */
+export const draining = { on: false };
+
 /** One MCP server for one agent. `client()` gives the agent API, connected (and named) on first use. */
-export function createMcpServer(client: () => Promise<AgentApi>) {
+export function createMcpServer(client: (clientName?: string) => Promise<AgentApi>) {
   const list = tools();
   const byName = new Map(list.map((x) => [x.name, x]));
   const server = new Server({ name: 'sutradhar', version: process.env.SUTRADHAR_VERSION ?? '0.1.0' }, { capabilities: { tools: {} }, instructions: INSTRUCTIONS });
@@ -58,8 +63,10 @@ export function createMcpServer(client: () => Promise<AgentApi>) {
   server.setRequestHandler(CallToolRequestSchema, async (req) => {
     const entry = byName.get(req.params.name);
     if (!entry) return { isError: true, content: [{ type: 'text', text: `unknown tool ${req.params.name}` }] };
+    // A JSON-RPC error, not a tool result: pranali and agents can tell it never ran.
+    if (draining.on) throw Object.assign(new Error(RESTARTING), { code: -32002 });
     try {
-      const c: any = await client();
+      const c: any = await client(server.getClientVersion()?.name);
       const fn = c[req.params.name];
       const args = req.params.arguments ?? {};
       const result = entry.proc._def.type === 'query' ? await fn.query(args) : await fn.mutate(args);
@@ -71,30 +78,77 @@ export function createMcpServer(client: () => Promise<AgentApi>) {
   return server;
 }
 
-/** `sutradhar mcp` in its own process: MCP on stdio, calls over the daemon's agent socket. */
+/** `sutradhar mcp --in-process`: MCP on stdio, calls over the daemon's agent socket. */
 export async function runMcp(name: string) {
   let conn: Awaited<ReturnType<typeof agentClient>> | null = null;
-  const server = createMcpServer(async () => {
-    if (!conn || conn.socket.destroyed) conn = await agentClient(name);
+  const server = createMcpServer(async (clientName) => {
+    if (!conn || conn.socket.destroyed) conn = await agentClient(name, undefined, process.cwd(), clientName);
     return conn.client;
   });
-  await server.connect(new StdioServerTransport());
+  const transport = new StdioServerTransport();
+  const pending = new Pending();
+  track(transport, pending);
+  await server.connect(transport);
+  // The agent closed stdin: answer what it already asked, then go (the open
+  // agent socket would otherwise keep this process alive forever).
+  process.stdin.once('end', () => {
+    void pending.idle().then(() => {
+      conn?.socket.destroy();
+      if (process.stdout.writableNeedDrain) process.stdout.once('drain', () => process.exit(0));
+      else process.exit(0);
+    });
+  });
+}
+
+/** Requests a transport received and hasn't answered yet (string and number ids apart). */
+export class Pending {
+  private ids = new Set<string>();
+  private waiters: (() => void)[] = [];
+  get size() { return this.ids.size; }
+  add(id: unknown) { this.ids.add(JSON.stringify(id)); }
+  done(id: unknown) {
+    this.ids.delete(JSON.stringify(id));
+    if (!this.ids.size) for (const w of this.waiters.splice(0)) w();
+  }
+  idle() { return this.ids.size ? new Promise<void>((r) => this.waiters.push(r)) : Promise.resolve(); }
+}
+
+const isRequest = (m: any) => m && typeof m === 'object' && typeof m.method === 'string' && m.id !== undefined && m.id !== null;
+const isResponse = (m: any) => m && typeof m === 'object' && m.method === undefined && m.id !== undefined && ('result' in m || 'error' in m);
+
+/** Counts a transport's requests in and answers out (after the server wired its handlers). */
+function track(tr: Transport, pending: Pending) {
+  const send = tr.send.bind(tr);
+  tr.send = (m, opts) => send(m, opts).finally(() => { if (isResponse(m)) pending.done((m as any).id); });
+  const start = tr.start.bind(tr);
+  tr.start = async () => {
+    const onmessage = tr.onmessage;
+    tr.onmessage = (m, extra) => { if (isRequest(m)) pending.add((m as any).id); onmessage?.(m, extra); };
+    return start();
+  };
 }
 
 /**
  * MCP over a socket, framed like stdio (one JSON-RPC message per line).
- * `first` is whatever arrived after the preamble line, already read.
+ * `first` is whatever arrived after the hello line, already read. The socket
+ * is half-open: when the agent's side finishes (pranali at stdin EOF), the
+ * answers still owed are written before this side ends too.
  */
+const HALF_OPEN_MS = 10000;
+
 export class SocketTransport implements Transport {
   onmessage?: (m: JSONRPCMessage) => void;
   onclose?: () => void;
   onerror?: (e: Error) => void;
+  readonly pending = new Pending();
   private buf = new ReadBuffer();
   private closed = false;
   constructor(private sock: Socket, private first: Buffer) {}
 
   async start() {
     this.sock.on('data', (chunk: Buffer) => this.feed(chunk));
+    // The agent's side is done: answer what it already asked (for up to 10 s), then end ours.
+    this.sock.on('end', () => { void Promise.race([this.pending.idle(), new Promise((r) => setTimeout(r, HALF_OPEN_MS).unref())]).then(() => this.end()); });
     this.sock.on('close', () => this.close());
     this.sock.on('error', (e) => this.onerror?.(e));
     if (this.first.length) this.feed(this.first);
@@ -107,22 +161,31 @@ export class SocketTransport implements Transport {
       let m: JSONRPCMessage | null;
       try { m = this.buf.readMessage(); } catch (e) { this.onerror?.(e as Error); continue; }
       if (!m) break;
+      if (isRequest(m)) this.pending.add((m as any).id);
       this.onmessage?.(m);
     }
   }
 
   send(m: JSONRPCMessage) {
     return new Promise<void>((resolve) => {
-      if (this.sock.destroyed) { resolve(); return; }
+      if (isResponse(m)) this.pending.done((m as any).id);
+      if (this.sock.destroyed || !this.sock.writable) { resolve(); return; }
       if (this.sock.write(serializeMessage(m))) resolve(); else this.sock.once('drain', resolve);
     });
+  }
+
+  /** Ends this side once what was written is flushed; the socket's close then closes the session. */
+  end() {
+    if (this.sock.destroyed) return;
+    this.sock.end();
+    setTimeout(() => this.sock.destroy(), 2000).unref();
   }
 
   async close() {
     if (this.closed) return;
     this.closed = true;
     this.buf.clear();
-    this.sock.destroy();
+    this.end();
     this.onclose?.();
   }
 }

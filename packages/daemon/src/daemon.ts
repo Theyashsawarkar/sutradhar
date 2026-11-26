@@ -1,18 +1,20 @@
 // The daemon: one unix socket, where browsers (through their native hosts)
-// and agents (through `sutradhar call`, or a `sutradhar mcp` in its own
-// process) meet, and mcp.sock beside it, where each connection is one MCP
-// session served right here (what the sutradhar-mcp pipe connects to).
+// and agents (through `sutradhar call`, or a `sutradhar mcp --in-process`)
+// meet, and mcp.sock beside it, where each connection is one MCP session
+// served right here (what pranali connects to). systemd may hand it both
+// sockets (sutradhar.socket, sutradhar-mcp.socket); see runtime.ts.
 
-import { chmodSync, existsSync, mkdirSync, unlinkSync } from 'node:fs';
-import { createConnection, createServer, type Socket } from 'node:net';
+import { chmodSync, unlinkSync } from 'node:fs';
+import { createServer, type Server, type Socket } from 'node:net';
 import { dirname } from 'node:path';
 import { createPeer, type Frame } from '../../protocol/src/rpc.ts';
 import { createLineReader } from '../../protocol/src/framing.ts';
 import type { BrowserRouter } from '../../../extension/src/background/router.ts';
 import { agentRouter, type AgentRouter } from './agent-router.ts';
-import { createMcpServer, SocketTransport } from './mcp.ts';
+import { createMcpServer, draining, SocketTransport } from './mcp.ts';
 import { clients, hubRouter } from './hub-router.ts';
 import { paths } from './paths.ts';
+import { acquireLock, activatedFds, checkSocketPath, leftover, privateDir } from './runtime.ts';
 import { D, log, type Conn } from './state.ts';
 import { t } from './trpc.ts';
 import { settleAll } from './gates.ts';
@@ -26,7 +28,7 @@ const adminRouter = t.router({
   status: t.procedure.query(() => ({
     pid: process.pid, started: D.started, socket: paths.socket,
     browsers: [...D.browsers.values()].map((b) => ({ id: b.id, name: b.hello.name, version: b.hello.version, engine: b.hello.engine, extension: b.hello.extension })),
-    sessions: [...D.sessions.values()].map((s) => ({ id: s.id, browser: s.browserId, tabs: [...s.tabs], stopped: s.stopped })),
+    sessions: [...D.sessions.values()].map((s) => ({ id: s.id, client: s.client, browser: s.browserId, tabs: [...s.tabs], stopped: s.stopped })),
     gates: [...D.gates.values()].map(({ resolve: _r, ...g }) => g),
     paused: takeover.paused,
     recording: !!recorder.current,
@@ -110,59 +112,109 @@ function serve(sock: Socket) {
 }
 
 /** An agent connection inside the daemon: the same router, gates and session rules as one over the socket, without the socket. */
-async function localAgent(name: string) {
+async function localAgent(name: string, cwd?: string, client?: string) {
   let end: ReturnType<typeof attach> | undefined;
   let open = true;
   const peer = createPeer<AgentRouter>({ send: (f) => queueMicrotask(() => { if (open) end!.handle(f); }), idPrefix: 'a', pathPrefix: 'agent.' });
   end = attach((f) => queueMicrotask(() => peer.handle(f)));
+  end.conn.cwd = cwd;
   const close = () => { if (!open) return; open = false; peer.close('session ended'); end!.gone(); };
-  try { await peer.client.session_start.mutate({ name }); } catch (e) { close(); throw e; }
+  try { await peer.client.session_start.mutate({ name, client }); } catch (e) { close(); throw e; }
   return { client: peer.client, close };
 }
 
+const mcpTransports = new Set<SocketTransport>();
+const mainSockets = new Set<Socket>();
+
+const HELLO_TIMEOUT_MS = 5000;
+
 /**
- * mcp.sock: the first line is a preamble, `{"name": "<agent>"}`; after it,
- * MCP's JSON-RPC, one message per line. The agent's session starts at its
- * first tool call and ends when the connection closes, as in its own process.
+ * mcp.sock: the first line is pranali's hello (pranali/docs/PROTOCOL.md),
+ * answered with `{"pranali":1,"ok":true}`; after it, MCP's JSON-RPC, one
+ * message per line. Until the next release it may instead be the old
+ * sutradhar-mcp preamble, `{"name": "<agent>"}`, which gets no answer. The
+ * agent's session starts at its first tool call and ends with the connection.
  */
 function serveMcp(sock: Socket) {
   let head = Buffer.alloc(0);
+  const timer = setTimeout(() => sock.destroy(), HELLO_TIMEOUT_MS);
+  const reply = (r: Record<string, unknown>) => sock.write(JSON.stringify({ pranali: 1, ...r }) + '\n');
+  const refuse = (error: string) => { reply({ ok: false, error }); sock.end(); };
   const onData = (chunk: Buffer) => {
     head = Buffer.concat([head, chunk]);
     const nl = head.indexOf(10);
     if (nl < 0) { if (head.length > 64 * 1024) sock.destroy(); return; }
+    clearTimeout(timer);
     sock.pause();
     sock.off('data', onData);
-    let pre: { name?: unknown };
-    try { pre = JSON.parse(head.subarray(0, nl).toString('utf8')); } catch { sock.destroy(); return; }
-    const name = typeof pre?.name === 'string' && pre.name ? pre.name : 'agent';
+    let hello: Record<string, unknown>;
+    try { hello = JSON.parse(head.subarray(0, nl).toString('utf8')); } catch { sock.destroy(); return; }
+    if (!hello || typeof hello !== 'object') { sock.destroy(); return; }
+    const isPranali = 'pranali' in hello;
+    if (isPranali) {
+      if (hello.pranali !== 1) return refuse(`sutradhar speaks pranali protocol 1, not ${JSON.stringify(hello.pranali)}`);
+      if (hello.tool !== 'sutradhar') return refuse(`this is sutradhar's socket, not ${JSON.stringify(hello.tool)}'s`);
+      if (draining.on) return refuse('sutradhar is restarting');
+    }
+    const raw = isPranali ? hello.agent : hello.name;
+    const name = typeof raw === 'string' && raw ? raw : 'agent';
+    const cwd = typeof hello.cwd === 'string' && hello.cwd.startsWith('/') ? hello.cwd : undefined;
     let agent: ReturnType<typeof localAgent> | undefined;
-    const server = createMcpServer(async () => {
-      if (!agent) { agent = localAgent(name); agent.catch(() => { agent = undefined; }); }
+    const server = createMcpServer(async (clientName) => {
+      if (!agent) { agent = localAgent(name, cwd, clientName); agent.catch(() => { agent = undefined; }); }
       return (await agent).client;
     });
-    server.onclose = () => { agent?.then((a) => a.close(), () => {}); };
-    server.connect(new SocketTransport(sock, head.subarray(nl + 1))).catch(() => sock.destroy());
+    const transport = new SocketTransport(sock, head.subarray(nl + 1));
+    mcpTransports.add(transport);
+    server.onclose = () => { mcpTransports.delete(transport); agent?.then((a) => a.close(), () => {}); };
+    if (isPranali) reply({ ok: true });
+    server.connect(transport).catch(() => sock.destroy());
   };
   sock.on('data', onData);
+  sock.on('end', () => { if (!head.includes(10)) { clearTimeout(timer); sock.destroy(); } });
   sock.on('error', () => sock.destroy());
 }
 
-export async function runDaemon() {
-  mkdirSync(dirname(paths.socket), { recursive: true, mode: 0o700 });
-  if (existsSync(paths.socket)) {
-    // Another daemon alive? Then leave it be.
-    const alive = await new Promise<boolean>((res) => {
-      const c = createConnection(paths.socket);
-      c.on('connect', () => { c.destroy(); res(true); });
-      c.on('error', () => res(false));
-    });
-    if (alive) { console.error(`sutradhar: a daemon is already running on ${paths.socket}`); process.exit(0); }
-    unlinkSync(paths.socket);
+/** Listens on systemd's fd when it passed one, else binds `path` (0600) after making sure nobody listens there. */
+async function listenOn(server: Server, fd: number | undefined, path: string): Promise<boolean> {
+  if (fd !== undefined) {
+    await new Promise<void>((res, rej) => { server.once('error', rej); server.listen({ fd }, () => { server.off('error', rej); res(); }); });
+    return false;
   }
-  mkdirSync(dirname(paths.mcpSocket), { recursive: true, mode: 0o700 });
-  // Left by a daemon that died: nothing listens there now (the check above found no live daemon).
-  if (existsSync(paths.mcpSocket)) unlinkSync(paths.mcpSocket);
+  checkSocketPath(path);
+  // Only after taking the lock, and only a socket that refuses connections (a dead daemon's) is removed.
+  const state = await leftover(path);
+  if (state === 'live') throw Object.assign(new Error(`something already listens on ${path} (a systemd socket unit? then: systemctl --user start sutradhar)`), { code: 'BUSY' });
+  if (state === 'other') throw new Error(`${path} is in the way and isn't a dead socket; not removing it`);
+  if (state === 'dead') unlinkSync(path);
+  await new Promise<void>((res, rej) => { server.once('error', rej); server.listen(path, () => { server.off('error', rej); res(); }); });
+  chmodSync(path, 0o600);
+  return true;
+}
+
+/** In-flight work: MCP requests not yet answered, and agent calls (CLI and in-process MCP servers) still running. */
+function busy() {
+  let n = 0;
+  for (const tr of mcpTransports) n += tr.pending.size;
+  for (const s of D.sessions.values()) n += s.calls.size;
+  return n;
+}
+
+export const DRAIN_MS = 20000;
+
+export async function runDaemon() {
+  const fds = activatedFds();
+  try {
+    privateDir(dirname(paths.socket), fds.main === undefined);
+    privateDir(dirname(paths.mcpSocket), fds.mcp === undefined);
+    privateDir(dirname(paths.lock));
+  } catch (e) { console.error(`sutradhar: ${(e as Error).message}`); process.exit(1); }
+  const lock = acquireLock(paths.lock);
+  if (!lock.ok) {
+    console.error(`sutradhar: a daemon is already running (pid ${lock.pid})`);
+    // Activated by systemd, failing says so; run by hand, there's nothing wrong.
+    process.exit(fds.main !== undefined || fds.mcp !== undefined ? 1 : 0);
+  }
   setInterval(() => {
     for (const s of [...D.sessions.values()]) {
       if (s.detachedAt && Date.now() - s.detachedAt > 30 * 60000) {
@@ -171,22 +223,46 @@ export async function runDaemon() {
       }
     }
   }, 60000).unref();
-  const server = createServer(serve);
-  await new Promise<void>((res) => server.listen(paths.socket, res));
-  chmodSync(paths.socket, 0o600);
-  const mcpServer = createServer(serveMcp);
-  await new Promise<void>((res) => mcpServer.listen(paths.mcpSocket, res));
-  chmodSync(paths.mcpSocket, 0o600);
-  log({ event: 'daemon-start', pid: process.pid });
-  console.error(`sutradhar daemon listening on ${paths.socket} (MCP sessions on ${paths.mcpSocket})`);
-  const quit = () => {
-    settleAll('stopped');
+  const server = createServer((sock) => { mainSockets.add(sock); sock.on('close', () => mainSockets.delete(sock)); serve(sock); });
+  // Half-open: answers written after pranali's half-close (its stdin ended) still arrive.
+  const mcpServer = createServer({ allowHalfOpen: true }, serveMcp);
+  const bound: string[] = [];
+  try {
+    if (await listenOn(server, fds.main, paths.socket)) bound.push(paths.socket);
+    if (await listenOn(mcpServer, fds.mcp, paths.mcpSocket)) bound.push(paths.mcpSocket);
+  } catch (e) {
+    console.error(`sutradhar: ${(e as Error).message}`);
+    for (const p of bound) try { unlinkSync(p); } catch { /* */ }
+    lock.release();
+    process.exit((e as { code?: string }).code === 'BUSY' ? 0 : 1);
+  }
+  log({ event: 'daemon-start', pid: process.pid, activated: Object.keys(fds) });
+  console.error(`sutradhar daemon listening on ${paths.socket} (MCP sessions on ${paths.mcpSocket})${fds.main !== undefined || fds.mcp !== undefined ? ' (from systemd)' : ''}`);
+
+  let stopping = false;
+  const quit = async () => {
+    if (stopping) return;
+    stopping = true;
+    // 1. No new connections, no new calls (they're told they did not run).
+    draining.on = true;
     server.close();
     mcpServer.close();
-    try { unlinkSync(paths.socket); } catch { /* */ }
-    try { unlinkSync(paths.mcpSocket); } catch { /* */ }
+    // 2. What's running finishes, for up to 20 s.
+    const deadline = Date.now() + Number(process.env.SUTRADHAR_DRAIN_MS || DRAIN_MS);
+    while (busy() && Date.now() < deadline) await new Promise((r) => setTimeout(r, 50));
+    const left = busy();
+    log({ event: 'daemon-stop', pid: process.pid, unfinished: left });
+    // 3. Waiting gates can't be answered any more; say goodbye, flushing what was written.
+    settleAll('stopped');
+    for (const tr of mcpTransports) tr.end();
+    for (const s of mainSockets) s.end();
+    const flushEnd = Date.now() + 1000;
+    while ((mcpTransports.size || mainSockets.size) && Date.now() < flushEnd) await new Promise((r) => setTimeout(r, 20));
+    // Only the sockets this daemon bound: systemd's stay, and queue the next connections.
+    for (const p of bound) try { unlinkSync(p); } catch { /* */ }
+    lock.release();
     process.exit(0);
   };
-  process.on('SIGTERM', quit);
-  process.on('SIGINT', quit);
+  process.on('SIGTERM', () => void quit());
+  process.on('SIGINT', () => void quit());
 }
