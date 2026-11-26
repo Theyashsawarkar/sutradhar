@@ -1,5 +1,7 @@
 // The daemon: one unix socket, where browsers (through their native hosts)
-// and agents (through `sutradhar mcp` / `sutradhar call`) meet.
+// and agents (through `sutradhar call`, or a `sutradhar mcp` in its own
+// process) meet, and mcp.sock beside it, where each connection is one MCP
+// session served right here (what the sutradhar-mcp pipe connects to).
 
 import { chmodSync, existsSync, mkdirSync, unlinkSync } from 'node:fs';
 import { createConnection, createServer, type Socket } from 'node:net';
@@ -7,7 +9,8 @@ import { dirname } from 'node:path';
 import { createPeer, type Frame } from '../../protocol/src/rpc.ts';
 import { createLineReader } from '../../protocol/src/framing.ts';
 import type { BrowserRouter } from '../../../extension/src/background/router.ts';
-import { agentRouter } from './agent-router.ts';
+import { agentRouter, type AgentRouter } from './agent-router.ts';
+import { createMcpServer, SocketTransport } from './mcp.ts';
 import { clients, hubRouter } from './hub-router.ts';
 import { paths } from './paths.ts';
 import { D, log, type Conn } from './state.ts';
@@ -61,18 +64,11 @@ export type RootRouter = typeof rootRouter;
 
 let connSeq = 0;
 
-function serve(sock: Socket) {
+/** One connection's end in the daemon: frames in, frames out. Agent sockets, browsers and MCP sessions all go through it. */
+function attach(send: (f: Frame) => void) {
   const conn: Conn = { id: ++connSeq };
-  const send = (f: Frame) => { if (!sock.destroyed) sock.write(JSON.stringify(f) + '\n'); };
   const peer = createPeer<BrowserRouter>({ router: rootRouter, ctx: () => ({ conn }), send, idPrefix: 'd' });
   clients.set(conn.id, peer.client);
-  sock.setEncoding('utf8');
-  sock.on('data', createLineReader((line) => {
-    let f: Frame;
-    try { f = JSON.parse(line); } catch { return; }
-    if ((f as { t: string }).t === 'meta') { conn.exe = String((f as unknown as { exe?: string }).exe ?? ''); return; }
-    peer.handle(f);
-  }));
   const gone = () => {
     peer.close('peer disconnected');
     clients.delete(conn.id);
@@ -97,7 +93,58 @@ function serve(sock: Socket) {
       }
     }
   };
-  sock.on('close', gone);
+  return { conn, handle: (f: Frame) => peer.handle(f), gone };
+}
+
+function serve(sock: Socket) {
+  const end = attach((f) => { if (!sock.destroyed) sock.write(JSON.stringify(f) + '\n'); });
+  sock.setEncoding('utf8');
+  sock.on('data', createLineReader((line) => {
+    let f: Frame;
+    try { f = JSON.parse(line); } catch { return; }
+    if ((f as { t: string }).t === 'meta') { end.conn.exe = String((f as unknown as { exe?: string }).exe ?? ''); return; }
+    end.handle(f);
+  }));
+  sock.on('close', end.gone);
+  sock.on('error', () => sock.destroy());
+}
+
+/** An agent connection inside the daemon: the same router, gates and session rules as one over the socket, without the socket. */
+async function localAgent(name: string) {
+  let end: ReturnType<typeof attach> | undefined;
+  let open = true;
+  const peer = createPeer<AgentRouter>({ send: (f) => queueMicrotask(() => { if (open) end!.handle(f); }), idPrefix: 'a', pathPrefix: 'agent.' });
+  end = attach((f) => queueMicrotask(() => peer.handle(f)));
+  const close = () => { if (!open) return; open = false; peer.close('session ended'); end!.gone(); };
+  try { await peer.client.session_start.mutate({ name }); } catch (e) { close(); throw e; }
+  return { client: peer.client, close };
+}
+
+/**
+ * mcp.sock: the first line is a preamble, `{"name": "<agent>"}`; after it,
+ * MCP's JSON-RPC, one message per line. The agent's session starts at its
+ * first tool call and ends when the connection closes, as in its own process.
+ */
+function serveMcp(sock: Socket) {
+  let head = Buffer.alloc(0);
+  const onData = (chunk: Buffer) => {
+    head = Buffer.concat([head, chunk]);
+    const nl = head.indexOf(10);
+    if (nl < 0) { if (head.length > 64 * 1024) sock.destroy(); return; }
+    sock.pause();
+    sock.off('data', onData);
+    let pre: { name?: unknown };
+    try { pre = JSON.parse(head.subarray(0, nl).toString('utf8')); } catch { sock.destroy(); return; }
+    const name = typeof pre?.name === 'string' && pre.name ? pre.name : 'agent';
+    let agent: ReturnType<typeof localAgent> | undefined;
+    const server = createMcpServer(async () => {
+      if (!agent) { agent = localAgent(name); agent.catch(() => { agent = undefined; }); }
+      return (await agent).client;
+    });
+    server.onclose = () => { agent?.then((a) => a.close(), () => {}); };
+    server.connect(new SocketTransport(sock, head.subarray(nl + 1))).catch(() => sock.destroy());
+  };
+  sock.on('data', onData);
   sock.on('error', () => sock.destroy());
 }
 
@@ -113,6 +160,9 @@ export async function runDaemon() {
     if (alive) { console.error(`sutradhar: a daemon is already running on ${paths.socket}`); process.exit(0); }
     unlinkSync(paths.socket);
   }
+  mkdirSync(dirname(paths.mcpSocket), { recursive: true, mode: 0o700 });
+  // Left by a daemon that died: nothing listens there now (the check above found no live daemon).
+  if (existsSync(paths.mcpSocket)) unlinkSync(paths.mcpSocket);
   setInterval(() => {
     for (const s of [...D.sessions.values()]) {
       if (s.detachedAt && Date.now() - s.detachedAt > 30 * 60000) {
@@ -124,12 +174,17 @@ export async function runDaemon() {
   const server = createServer(serve);
   await new Promise<void>((res) => server.listen(paths.socket, res));
   chmodSync(paths.socket, 0o600);
+  const mcpServer = createServer(serveMcp);
+  await new Promise<void>((res) => mcpServer.listen(paths.mcpSocket, res));
+  chmodSync(paths.mcpSocket, 0o600);
   log({ event: 'daemon-start', pid: process.pid });
-  console.error(`sutradhar daemon listening on ${paths.socket}`);
+  console.error(`sutradhar daemon listening on ${paths.socket} (MCP sessions on ${paths.mcpSocket})`);
   const quit = () => {
     settleAll('stopped');
     server.close();
+    mcpServer.close();
     try { unlinkSync(paths.socket); } catch { /* */ }
+    try { unlinkSync(paths.mcpSocket); } catch { /* */ }
     process.exit(0);
   };
   process.on('SIGTERM', quit);

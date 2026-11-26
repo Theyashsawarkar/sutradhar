@@ -80,6 +80,7 @@ to you whenever a step is yours.
 | What | Why |
 |---|---|
 | Linux, Node.js 22.18+ | the daemon, the native-messaging host, the MCP server |
+| Rust (`cargo`), optional | builds `sutradhar-mcp`, the small pipe each agent runs (about 2 MB; without it `sutradhar mcp` is a Node process of about 78 MB per agent) |
 | Chrome / Chromium / Brave 116+, Firefox 128+ or Zen | the browser it drives |
 | `notify-send` (libnotify) and a notification server | "your turn" notifications |
 | sway (or another wlroots compositor), `wtype` | real mouse and keyboard (optional) |
@@ -344,6 +345,7 @@ The toolbar panel's "Ask before…" boxes set the `approve` and `eval` rules for
 | Environment | |
 |---|---|
 | `SUTRADHAR_SOCKET` | the daemon's socket (default `$XDG_RUNTIME_DIR/sutradhar/sock`) |
+| `SUTRADHAR_MCP_SOCKET` | where the daemon serves MCP sessions (default `mcp.sock` beside the socket) |
 | `SUTRADHAR_AGENT` | the agent's name for `mcp` and `call` |
 | `SUTRADHAR_SESSION` | the session `sutradhar call` uses (default: one per terminal); it keeps its tabs between calls and ends after 30 idle minutes |
 | `SUTRADHAR_BROWSER` | the browser agents use first when several are connected (`zen`, `chrome`…) |
@@ -362,11 +364,17 @@ Files: the log is `~/.local/state/sutradhar/log.jsonl`; downloads saved by
 
 - **Agents** start `sutradhar mcp` (an MCP server on stdio); scripts use
   `sutradhar call`. Both are thin clients: each opens a **session** on the
-  daemon, named after the agent.
+  daemon, named after the agent. `sutradhar mcp` is `sutradhar-mcp`, a small
+  Rust pipe: it sends the agent's name, then joins the agent's stdio to the
+  daemon's `mcp.sock`, where the daemon runs that agent's MCP server itself.
+  It starts the daemon if none runs; if it can't reach one (or `cargo` wasn't
+  there to build it) `sutradhar mcp` runs the MCP server in its own Node
+  process, as before.
 - **The daemon** (`sutradhar.service`, one per login) is where everything
   meets: connected browsers, agent sessions and the tabs each owns, the risk
   gates, notifications, the action log, Stop, and the real mouse and keyboard.
-  It listens on `$XDG_RUNTIME_DIR/sutradhar/sock` (mode 0600). Any client
+  It listens on `$XDG_RUNTIME_DIR/sutradhar/sock` and, for MCP sessions,
+  `mcp.sock` beside it (both mode 0600, in a 0700 directory). Any client
   starts it if it isn't running.
 - **The native-messaging host** (`sutradhar host`) is started by each browser
   when the extension connects. It only pipes frames between the browser's
@@ -385,7 +393,8 @@ Files: the log is `~/.local/state/sutradhar/log.jsonl`; downloads saved by
 </p>
 
 1. The agent calls `act` with steps and a `why`.
-2. `sutradhar mcp` calls `agent.act` on the daemon over the unix socket.
+2. The agent's MCP session in the daemon calls `agent.act` (the same router,
+   gates and session rules as a call over the unix socket).
 3. The daemon checks the session may use that tab (its own tabs and the
    popups they open, or one you lent it) and that you haven't pressed Stop,
    then calls `page.act` on the extension.
@@ -456,6 +465,7 @@ python3 scripts/diagrams.py   # the README's diagrams (assets/diagrams/*.svg)
 pnpm typecheck
 pnpm test           # unit tests (vitest)
 pnpm e2e            # Chromium, Zen and Firefox in throwaway headless profiles, plus MCP
+cargo test --manifest-path crates/sutradhar-mcp/Cargo.toml   # the MCP pipe (and cargo clippy)
 tests/e2e/nested-sway.sh   # real mouse/keyboard in a private headless sway (never your desktop)
 ```
 

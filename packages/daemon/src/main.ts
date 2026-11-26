@@ -49,9 +49,8 @@ async function main(argv: string[]) {
     case 'daemon': { const { runDaemon } = await import('./daemon.ts'); await runDaemon(); return; }
     case 'host': { const { runHost } = await import('./host.ts'); await runHost(); return; }
     case 'mcp': {
-      const i = rest.indexOf('--name');
-      const name = i >= 0 ? rest[i + 1] : process.env.SUTRADHAR_AGENT || (process.env.CLAUDECODE ? 'claude' : process.env.CODEX_HOME ? 'codex' : 'agent');
-      const { runMcp } = await import('./mcp.ts'); await runMcp(name); return;
+      // Normally the sutradhar-mcp pipe answers `sutradhar mcp` (bin/sutradhar); this is its fallback.
+      const { agentName, runMcp } = await import('./mcp.ts'); await runMcp(agentName(rest)); return;
     }
     case 'call': {
       const [tool, json] = rest;
@@ -143,6 +142,7 @@ async function main(argv: string[]) {
       check(existsSync(join(r, 'dist', 'sutradhar.mjs')), 'built', 'pnpm build');
       check(existsSync(join(r, 'dist', 'chrome', 'manifest.json')), 'Chrome extension built (dist/chrome)', 'pnpm build');
       check(existsSync(join(r, 'dist', 'sutradhar-firefox.xpi')), 'Firefox/Zen extension built (dist/sutradhar-firefox.xpi)', 'pnpm build');
+      check(existsSync(join(r, 'dist', 'sutradhar-mcp')), 'MCP pipe built (dist/sutradhar-mcp)', 'install Rust (cargo), then pnpm build; until then each agent\'s sutradhar mcp is a Node process');
       let any = false;
       for (const [n, d] of Object.entries({ ...CHROMIUM_DIRS, ...GECKO_DIRS })) {
         const f = join(d, `${HOST_NAME}.json`);

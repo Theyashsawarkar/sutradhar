@@ -1,11 +1,19 @@
-// `sutradhar mcp`: an MCP server on stdio for any agent. Its tools are the
-// agent router's procedures, so the tool list can't drift from the code.
+// The MCP server. Its tools are the agent router's procedures, so the tool
+// list can't drift from the code. It runs in two places:
+// - in the daemon, one per connection to mcp.sock (what `sutradhar mcp`
+//   normally is: the small sutradhar-mcp pipe joins stdio to that socket);
+// - in its own Node process (`sutradhar mcp` when the pipe isn't built or
+//   can't reach a daemon), calling the daemon over its agent socket.
 
+import type { Socket } from 'node:net';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { ReadBuffer, serializeMessage } from '@modelcontextprotocol/sdk/shared/stdio.js';
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
+import { CallToolRequestSchema, ListToolsRequestSchema, type JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
+import type { TRPCClient } from '@trpc/client';
 import { z } from 'zod';
-import { agentRouter } from './agent-router.ts';
+import { agentRouter, type AgentRouter } from './agent-router.ts';
 import { agentClient } from './client.ts';
 
 const INSTRUCTIONS = `sutradhar drives the user's real browser (Chrome, Firefox or Zen): open tabs, read pages, click, type, upload, download, as the user would.
@@ -32,15 +40,19 @@ function tools() {
     });
 }
 
-export async function runMcp(name: string) {
+/** The agent's name: --name, else $SUTRADHAR_AGENT, else guessed from the agent's environment. */
+export function agentName(args: string[], env: NodeJS.ProcessEnv = process.env) {
+  const i = args.indexOf('--name');
+  if (i >= 0 && args[i + 1]) return args[i + 1];
+  return env.SUTRADHAR_AGENT || (env.CLAUDECODE ? 'claude' : env.CODEX_HOME ? 'codex' : 'agent');
+}
+
+type AgentApi = TRPCClient<AgentRouter>;
+
+/** One MCP server for one agent. `client()` gives the agent API, connected (and named) on first use. */
+export function createMcpServer(client: () => Promise<AgentApi>) {
   const list = tools();
   const byName = new Map(list.map((x) => [x.name, x]));
-  let conn: Awaited<ReturnType<typeof agentClient>> | null = null;
-  const client = async () => {
-    if (!conn || conn.socket.destroyed) conn = await agentClient(name);
-    return conn.client;
-  };
-
   const server = new Server({ name: 'sutradhar', version: process.env.SUTRADHAR_VERSION ?? '0.1.0' }, { capabilities: { tools: {} }, instructions: INSTRUCTIONS });
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: list.map((x) => x.tool) }));
   server.setRequestHandler(CallToolRequestSchema, async (req) => {
@@ -56,7 +68,63 @@ export async function runMcp(name: string) {
       return { isError: true, content: [{ type: 'text', text: (e as Error).message }] };
     }
   });
+  return server;
+}
+
+/** `sutradhar mcp` in its own process: MCP on stdio, calls over the daemon's agent socket. */
+export async function runMcp(name: string) {
+  let conn: Awaited<ReturnType<typeof agentClient>> | null = null;
+  const server = createMcpServer(async () => {
+    if (!conn || conn.socket.destroyed) conn = await agentClient(name);
+    return conn.client;
+  });
   await server.connect(new StdioServerTransport());
+}
+
+/**
+ * MCP over a socket, framed like stdio (one JSON-RPC message per line).
+ * `first` is whatever arrived after the preamble line, already read.
+ */
+export class SocketTransport implements Transport {
+  onmessage?: (m: JSONRPCMessage) => void;
+  onclose?: () => void;
+  onerror?: (e: Error) => void;
+  private buf = new ReadBuffer();
+  private closed = false;
+  constructor(private sock: Socket, private first: Buffer) {}
+
+  async start() {
+    this.sock.on('data', (chunk: Buffer) => this.feed(chunk));
+    this.sock.on('close', () => this.close());
+    this.sock.on('error', (e) => this.onerror?.(e));
+    if (this.first.length) this.feed(this.first);
+    this.sock.resume();
+  }
+
+  private feed(chunk: Buffer) {
+    try { this.buf.append(chunk); } catch (e) { this.onerror?.(e as Error); this.sock.destroy(); return; }
+    for (;;) {
+      let m: JSONRPCMessage | null;
+      try { m = this.buf.readMessage(); } catch (e) { this.onerror?.(e as Error); continue; }
+      if (!m) break;
+      this.onmessage?.(m);
+    }
+  }
+
+  send(m: JSONRPCMessage) {
+    return new Promise<void>((resolve) => {
+      if (this.sock.destroyed) { resolve(); return; }
+      if (this.sock.write(serializeMessage(m))) resolve(); else this.sock.once('drain', resolve);
+    });
+  }
+
+  async close() {
+    if (this.closed) return;
+    this.closed = true;
+    this.buf.clear();
+    this.sock.destroy();
+    this.onclose?.();
+  }
 }
 
 function format(result: unknown, untrusted: boolean) {

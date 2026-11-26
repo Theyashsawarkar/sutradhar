@@ -19,6 +19,11 @@ command; docs/adr holds the decisions.
   those are handoffs, enforced in the page.
 - **Build:** `pnpm build` (scripts/build.mjs writes dist/ and both
   manifests). `pnpm check` = typecheck + unit tests + build.
+- **MCP:** the daemon serves each MCP session itself on `mcp.sock`
+  (daemon.ts `serveMcp`, server built in mcp.ts); `sutradhar mcp` is the
+  Rust pipe `crates/sutradhar-mcp` (std only: preamble `{"name"}` line, then
+  bytes both ways; `cargo test` and `cargo clippy -- -D warnings` there).
+  Without it, or without a daemon, `sutradhar mcp` is the old Node server.
 - **Tests never touch the user's browser, profile, daemon or desktop.**
   `pnpm e2e` runs throwaway headless Chromium, Zen and Firefox profiles with a
   test daemon on its own socket and a fake notify-send

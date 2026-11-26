@@ -1,5 +1,6 @@
 // Builds everything into dist/:
 //   dist/sutradhar.mjs            the daemon/host/MCP/CLI (one file, Node 22+)
+//   dist/sutradhar-mcp            `sutradhar mcp`: a small Rust pipe to the daemon (when cargo is here)
 //   dist/chrome/                  the extension for Chrome, Chromium, Brave (MV3)
 //   dist/firefox/                 the extension for Firefox and Zen (MV2, persistent background)
 //   dist/sutradhar-firefox.xpi    the same, zipped for "Install Add-on From File"
@@ -25,6 +26,18 @@ await build({
   banner: { js: "import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);" },
   logLevel: 'warning',
 });
+
+// ---------------------------------------------------------------- MCP pipe
+// Optional: without cargo, bin/sutradhar runs `mcp` in node, as before.
+{
+  const crate = join(root, 'crates', 'sutradhar-mcp');
+  let cargo = true;
+  try { execFileSync('cargo', ['--version'], { stdio: 'ignore' }); } catch { cargo = false; }
+  if (cargo) {
+    execFileSync('cargo', ['build', '--release', '--locked', '--quiet', '--manifest-path', join(crate, 'Cargo.toml')], { stdio: 'inherit' });
+    cpSync(join(crate, 'target', 'release', 'sutradhar-mcp'), join(dist, 'sutradhar-mcp'));
+  } else console.warn('cargo not found: skipping dist/sutradhar-mcp (sutradhar mcp runs in node)');
+}
 
 // ---------------------------------------------------------------- extension
 const ext = join(root, 'extension');

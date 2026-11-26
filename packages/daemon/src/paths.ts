@@ -1,13 +1,17 @@
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 const env = process.env;
 const home = env.HOME || homedir();
 const runtime = env.XDG_RUNTIME_DIR || `/tmp/sutradhar-${process.getuid?.() ?? 'user'}`;
 
+const socket = env.SUTRADHAR_SOCKET || join(runtime, 'sutradhar', 'sock');
+
 export const paths = {
   home,
-  socket: env.SUTRADHAR_SOCKET || join(runtime, 'sutradhar', 'sock'),
+  socket,
+  /** MCP sessions (the sutradhar-mcp pipe), beside the agent socket. crates/sutradhar-mcp finds it the same way. */
+  mcpSocket: env.SUTRADHAR_MCP_SOCKET || join(dirname(socket), 'mcp.sock'),
   config: join(env.XDG_CONFIG_HOME || join(home, '.config'), 'sutradhar'),
   state: join(env.XDG_STATE_HOME || join(home, '.local', 'state'), 'sutradhar'),
   downloads: join(home, 'Downloads', 'sutradhar'),

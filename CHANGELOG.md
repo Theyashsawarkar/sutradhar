@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **`sutradhar mcp` is a 2 MB pipe, not a 78 MB Node process per agent.** The
+  daemon serves MCP sessions itself on `mcp.sock` (beside its socket, 0600);
+  `sutradhar-mcp` (Rust, `crates/sutradhar-mcp`, built by `pnpm build` when
+  `cargo` is there) sends the agent's name and joins stdio to it. Same tools,
+  names, gates and sessions. It starts the daemon when none runs, and falls
+  back to the old Node server when it can't reach one.
 - The website, closer to Vayu's own: the tool's screenshot blurred behind the page, a centred hero with the logo and the verse, the page you're on as the white pill, glass "On this page" and footer panels, releases as cards. No glow behind the logo, no coloured line beside the verse.
 - **Spatial look** in the browser panel: graphite, rounder cards, near-white where you act, no all-caps headings.
 - The website has Vayu's Spatial look: graphite glass, a floating navigation bar, near-white for links and the main button, and the tool's own colour only as its signature (the logo's glow, the shloka's line, the release dots). No more all-caps labels.

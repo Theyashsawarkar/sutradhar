@@ -1,0 +1,17 @@
+[package]
+name = "sutradhar-mcp"
+# Released with sutradhar (package.json has the version); the binary never reports one.
+version = "0.0.0"
+edition = "2024"
+description = "`sutradhar mcp` in a few hundred KB: joins an agent's stdio to the daemon's MCP socket"
+license = "MIT"
+publish = false
+
+[dependencies]
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
