@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **The real-input e2e test can't leave processes behind**: `tests/e2e/nested-sway.sh` runs its private bus and headless sway in a systemd user scope of its own (`sutradhar-e2e-<pid>`), stopped when it ends, so whatever they started (a document portal, a stray child) goes with it; these once sat for days. The private `XDG_RUNTIME_DIR` is still set before the bus starts, and a FUSE mount left in it is unmounted (lazily) before it's removed. Without a user systemd it runs as before.
+
 ## 0.1.12 (2026-11-27)
 
 - `sutradhar.service` lists both sockets in `Sockets=`, so a daemon started at login also takes them from systemd (and after them) instead of binding the paths itself.
