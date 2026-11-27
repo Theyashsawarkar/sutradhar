@@ -112,8 +112,8 @@ sutradhar install           # native-messaging hosts for every browser found + t
 Firefox and Zen in `~/.mozilla/native-messaging-hosts`), writes and enables
 `sutradhar.service` with its two sockets, `sutradhar.socket` (browsers and the
 CLI) and `sutradhar-mcp.socket` (agents' MCP sessions), and prints where the
-extension files are. systemd owns the daemon: it listens on both sockets and
-starts the daemon on the first connection, so nothing else ever starts one.
+extension files are. systemd owns the daemon: during the graphical session it
+listens on both sockets and starts the daemon on the first connection, so nothing else ever starts one.
 To stop it for good, stop the sockets too:
 `systemctl --user stop sutradhar.socket sutradhar-mcp.socket sutradhar.service`.
 

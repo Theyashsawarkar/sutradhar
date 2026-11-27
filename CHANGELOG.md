@@ -17,7 +17,9 @@
   is gone.
 - **systemd owns the daemon (socket activation).** `sutradhar install` adds
   `sutradhar.socket` (the main socket: browsers' hosts, the CLI) and
-  `sutradhar-mcp.socket` (MCP sessions) to `sutradhar.service`; the daemon
+  `sutradhar-mcp.socket` (MCP sessions) to `sutradhar.service`, both part of
+  the graphical session like the service (so no connection starts the daemon
+  before DISPLAY / WAYLAND_DISPLAY exist); the daemon
   takes their listeners and starts on the first connection, and connections
   made while it restarts wait instead of failing. No pipe or host starts a
   daemon any more, so `systemctl --user stop` really stops it (stop the
@@ -42,9 +44,13 @@
   built by `pnpm build` when `cargo` is there; `bin/sutradhar-host` runs it,
   else the Node host. It relays byte for byte what the Node host does
   (`JSON.stringify(JSON.parse(…))` toward the daemon, the same `part` frames
-  toward the browser), and an e2e test compares the two. Known, unchanged:
-  parts are cut at 512 Ki UTF-16 units, so a part of mostly non-ASCII text or
-  escapes can pass the browser's 1 MB limit.
+  toward the browser), and an e2e test compares the two.
+- **Big frames to the browser always fit its 1 MB limit.** Parts were cut at
+  512 Ki UTF-16 units, so a part of CJK text (3 bytes a character) or of
+  escape-heavy text could reach 1.5 MB or more and be refused. Both hosts now
+  cut parts by encoded size: each `part` message, envelope and JSON escapes
+  included, is at most 1 MB of UTF-8, cut between characters (the extension
+  joins them as before).
 - Relative paths an agent passes (`screenshot` `save`, `page_pdf`, `record`,
   `downloads` `read`) are relative to the agent's directory (pranali's hello,
   or the CLI's); `sutradhar status` shows the MCP client's name beside each

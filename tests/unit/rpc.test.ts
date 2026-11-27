@@ -67,6 +67,18 @@ describe('framing', () => {
     for (const p of parts.reverse()) out = join(JSON.parse(p)) ?? out;
     expect((out as any).data.length).toBe(2_000_000);
   });
+  it('keeps every part under the byte limit: CJK, emoji and escape-heavy text', () => {
+    for (const data of ['漢字'.repeat(500_000), '😀'.repeat(300_000), 'a"b\\c\n\u0001'.repeat(200_000)]) {
+      const big = JSON.stringify({ t: 'res', id: '1', data });
+      const parts = splitFrame(big, 100_000);
+      expect(parts.length).toBeGreaterThan(1);
+      for (const p of parts) expect(Buffer.byteLength(p)).toBeLessThanOrEqual(100_000);
+      const join = createJoiner();
+      let out: unknown;
+      for (const p of parts) out = join(JSON.parse(p)) ?? out;
+      expect((out as any).data).toBe(data);
+    }
+  });
   it('reads lines across chunks', () => {
     const lines: string[] = [];
     const r = createLineReader((l) => lines.push(l));

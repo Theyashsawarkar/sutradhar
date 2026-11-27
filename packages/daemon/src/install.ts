@@ -112,6 +112,10 @@ WantedBy=graphical-session.target
     // The main socket: browsers' native hosts, `sutradhar call`, `sutradhar mcp --in-process`.
     'sutradhar.socket': `[Unit]
 Description=sutradhar: the daemon's socket (browsers and the CLI)
+# Listens only during the graphical session, like the service: a connection
+# before it would start the daemon without DISPLAY / WAYLAND_DISPLAY. (No
+# After=: a socket is ordered before sockets.target, which is before the session.)
+PartOf=graphical-session.target
 
 [Socket]
 ListenStream=%t/sutradhar/sock
@@ -120,11 +124,15 @@ DirectoryMode=0700
 Service=sutradhar.service
 
 [Install]
-WantedBy=sockets.target
+WantedBy=graphical-session.target
 `,
     // pranali's (pranali/docs/PROTOCOL.md): MCP sessions.
     'sutradhar-mcp.socket': `[Unit]
 Description=sutradhar: MCP sessions for agents (pranali)
+# Listens only during the graphical session, like the service: a connection
+# before it would start the daemon without DISPLAY / WAYLAND_DISPLAY. (No
+# After=: a socket is ordered before sockets.target, which is before the session.)
+PartOf=graphical-session.target
 
 [Socket]
 ListenStream=%t/sutradhar/mcp.sock
@@ -133,7 +141,7 @@ DirectoryMode=0700
 Service=sutradhar.service
 
 [Install]
-WantedBy=sockets.target
+WantedBy=graphical-session.target
 `,
   };
 }

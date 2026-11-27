@@ -8,8 +8,9 @@
 //! - browser → daemon: each message (any size the 4-byte length allows) is
 //!   re-serialized as `JSON.stringify(JSON.parse(msg))` would, one per line;
 //! - daemon → browser: each non-blank line is one message; a line longer than
-//!   512 Ki UTF-16 units is cut into `part` frames, since a browser refuses a
-//!   message over 1 MB from its host (the extension joins them);
+//!   1 MB is cut into `part` frames of at most 1 MB each, escapes and
+//!   envelope included, since a browser refuses a bigger message from its
+//!   host (the extension joins them);
 //! - the socket closing ends it (0), a socket error too (1), stdin ending
 //!   half-closes the socket and ends it (0).
 //!
@@ -25,8 +26,10 @@ use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::process::exit;
 
-/// Parts of at most this many UTF-16 code units (protocol/src/framing.ts PART_SIZE).
-const PART_SIZE: usize = 512 * 1024;
+/// A browser refuses a message over 1 MB (UTF-8 bytes) from its host (framing.ts MAX_NATIVE).
+const MAX_NATIVE: usize = 1024 * 1024;
+/// Room kept in each part for its envelope (framing.ts ENVELOPE).
+const ENVELOPE: usize = 256;
 const MAX_SOCKET_PATH: usize = 107;
 
 unsafe extern "C" {
@@ -83,20 +86,43 @@ fn js_blank(s: &str) -> bool {
     })
 }
 
-/// The messages for one line from the daemon: the line itself, or its parts.
-fn frames(line: &str, seq: &mut u64) -> Vec<Vec<u8>> {
-    let units = line.encode_utf16().count();
-    if units <= PART_SIZE {
+/// Bytes a character takes inside a JSON string, escaped as `JSON.stringify` does (framing.ts `escapedBytes`).
+fn escaped_bytes(c: char) -> usize {
+    match c {
+        '"' | '\\' | '\u{8}' | '\u{c}' | '\n' | '\r' | '\t' => 2,
+        '\0'..='\u{1f}' => 6,
+        _ => c.len_utf8(),
+    }
+}
+
+/// The messages for one line from the daemon: the line itself, or its parts,
+/// each at most `max` bytes encoded, cut between characters exactly as
+/// framing.ts `splitFrame` cuts them.
+fn frames(line: &str, seq: &mut u64, max: usize) -> Vec<Vec<u8>> {
+    if line.len() <= max {
         return vec![line.as_bytes().to_vec()];
     }
+    let budget = max - ENVELOPE;
+    let mut pieces: Vec<&str> = Vec::new();
+    let (mut start, mut used) = (0, 0);
+    for (i, c) in line.char_indices() {
+        let n = escaped_bytes(c);
+        if used + n > budget && i > start {
+            pieces.push(&line[start..i]);
+            start = i;
+            used = 0;
+        }
+        used += n;
+    }
+    pieces.push(&line[start..]);
     *seq += 1;
-    let all: Vec<u16> = line.encode_utf16().collect();
-    let n = units.div_ceil(PART_SIZE);
-    all.chunks(PART_SIZE)
+    let n = pieces.len();
+    pieces
+        .iter()
         .enumerate()
-        .map(|(i, chunk)| {
+        .map(|(i, piece)| {
             let mut f = format!("{{\"t\":\"part\",\"pid\":\"p{seq}\",\"i\":{i},\"n\":{n},\"s\":").into_bytes();
-            json::write_str16(&mut f, chunk);
+            json::write_str(&mut f, piece);
             f.push(b'}');
             f
         })
@@ -139,7 +165,7 @@ fn daemon_to_browser(sock: UnixStream) -> ! {
         if js_blank(&text) {
             continue;
         }
-        for f in frames(&text, &mut seq) {
+        for f in frames(&text, &mut seq, MAX_NATIVE) {
             if write_native(&mut out, &f).is_err() {
                 exit(1);
             }
@@ -272,21 +298,53 @@ mod tests {
     #[test]
     fn small_lines_go_whole_big_ones_in_parts() {
         let mut seq = 0;
-        assert_eq!(frames("{\"a\":1}", &mut seq), vec![b"{\"a\":1}".to_vec()]);
+        assert_eq!(frames("{\"a\":1}", &mut seq, MAX_NATIVE), vec![b"{\"a\":1}".to_vec()]);
         assert_eq!(seq, 0);
-        let big = format!("\"{}\"", "x".repeat(PART_SIZE * 2));
-        let f = frames(&big, &mut seq);
+        let exact = "x".repeat(MAX_NATIVE);
+        assert_eq!(frames(&exact, &mut seq, MAX_NATIVE).len(), 1);
+        let big = format!("\"{}\"", "x".repeat(MAX_NATIVE * 2));
+        let f = frames(&big, &mut seq, MAX_NATIVE);
         assert_eq!(f.len(), 3);
         assert!(f[0].starts_with(b"{\"t\":\"part\",\"pid\":\"p1\",\"i\":0,\"n\":3,\"s\":\"\\\"xxx"));
         assert!(f[2].ends_with(b"x\\\"\"}"));
-        // A pair cut at the boundary: two lone-surrogate escapes, as JSON.stringify writes them.
-        let cut = format!("{}😀", "a".repeat(PART_SIZE - 1));
-        let f = frames(&cut, &mut seq);
-        assert!(f[0].ends_with(b"a\\ud83d\"}"));
-        assert_eq!(
-            f[1],
-            b"{\"t\":\"part\",\"pid\":\"p2\",\"i\":1,\"n\":2,\"s\":\"\\ude00\"}".to_vec()
-        );
+        // CJK, emoji and escape-heavy text: every part fits, and the pieces join back to the line.
+        for line in [
+            "漢字".repeat(600_000),
+            "😀".repeat(400_000),
+            "a\"b\\c\u{1}\n".repeat(400_000),
+        ] {
+            let f = frames(&line, &mut seq, MAX_NATIVE);
+            assert!(f.len() > 1);
+            let mut joined = String::new();
+            for part in &f {
+                assert!(part.len() <= MAX_NATIVE, "{}", part.len());
+                let s = std::str::from_utf8(part).unwrap();
+                let body = &s[s.find(",\"s\":").unwrap() + 5..s.len() - 1];
+                joined.push_str(&unescape(body));
+            }
+            assert_eq!(joined, line);
+        }
+    }
+
+    /// Just enough of a JSON string reader for the test above.
+    fn unescape(q: &str) -> String {
+        let mut out = String::new();
+        let mut it = q[1..q.len() - 1].chars();
+        while let Some(c) = it.next() {
+            if c != '\\' {
+                out.push(c);
+                continue;
+            }
+            match it.next().unwrap() {
+                'n' => out.push('\n'),
+                'u' => {
+                    let h: String = it.by_ref().take(4).collect();
+                    out.push(char::from_u32(u32::from_str_radix(&h, 16).unwrap()).unwrap());
+                }
+                e => out.push(e),
+            }
+        }
+        out
     }
 
     #[test]

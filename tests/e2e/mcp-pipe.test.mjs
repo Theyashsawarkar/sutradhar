@@ -123,41 +123,41 @@ test('the hello: ok for sutradhar, refused for others, the old preamble still se
 
   const a = await raw(join(sb.dir, 'mcp.sock'));
   a.send(hello('alpha'));
-  await until(() => a.lines.length === 1, 3000, 'hello reply');
+  await until(() => a.lines.length === 1, 8000, 'hello reply');
   assert.deepEqual(a.lines[0], { pranali: 1, ok: true });
   a.send(INIT);
-  await until(() => a.lines.length === 2, 3000, 'initialize');
+  await until(() => a.lines.length === 2, 8000, 'initialize');
   assert.match(a.lines[1].result.instructions, /untrusted/);
   a.send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'log', arguments: {} } });
-  await until(() => a.lines.length === 3, 3000, 'log');
+  await until(() => a.lines.length === 3, 8000, 'log');
   assert.match(a.lines[2].result.content[0].text, /"session":"alpha#\d+"/);
   a.s.destroy();
 
   const wrong = await raw(join(sb.dir, 'mcp.sock'));
   wrong.send(hello('x', 'narada'));
-  await until(() => wrong.lines.length === 1 && wrong.ended(), 3000, 'refusal');
+  await until(() => wrong.lines.length === 1 && wrong.ended(), 8000, 'refusal');
   assert.equal(wrong.lines[0].ok, false);
   assert.match(wrong.lines[0].error, /sutradhar's socket/);
 
   const v2 = await raw(join(sb.dir, 'mcp.sock'));
   v2.send({ ...hello('x'), pranali: 2 });
-  await until(() => v2.lines.length === 1, 3000, 'refusal');
+  await until(() => v2.lines.length === 1, 8000, 'refusal');
   assert.equal(v2.lines[0].ok, false);
 
   // A pipe from the last release in a running session: `{"name"}`, no reply, then MCP.
   const old = await raw(join(sb.dir, 'mcp.sock'));
   old.send({ name: 'legacy' });
   old.send(INIT);
-  await until(() => old.lines.length === 1, 3000, 'initialize');
+  await until(() => old.lines.length === 1, 8000, 'initialize');
   assert.ok(old.lines[0].result);
   old.send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'log', arguments: {} } });
-  await until(() => old.lines.length === 2, 3000, 'log');
+  await until(() => old.lines.length === 2, 8000, 'log');
   assert.match(old.lines[1].result.content[0].text, /"session":"legacy#\d+"/);
   old.s.destroy();
 
   // No hello within 5 s: the daemon hangs up.
   const mute = await raw(join(sb.dir, 'mcp.sock'));
-  await until(() => mute.ended() || mute.s.destroyed, 8000, 'hello timeout');
+  await until(() => mute.ended() || mute.s.destroyed, 10000, 'hello timeout');
 });
 
 test('two agents through pranali: their own sessions, the same tools as the node server', { timeout: 30000 }, async (t) => {

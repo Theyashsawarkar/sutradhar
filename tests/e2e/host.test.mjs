@@ -40,13 +40,14 @@ function browserMessages() {
 
 /** What the daemon might send: small frames, blank lines, frames that need parts (a cut surrogate pair, CJK, quotes). */
 function daemonLines() {
-  const P = 512 * 1024;
+  const M = 1024 * 1024;
   return [
     JSON.stringify({ t: 'req', id: 'd1', path: 'tabs.list', input: {} }),
     '', '   ', ' ﻿',
-    JSON.stringify({ t: 'req', id: 'd2', input: { code: 'x'.repeat(P - 40) + '😀'.repeat(10) } }),
-    JSON.stringify({ t: 'req', id: 'd3', input: { file: 'ab"c\\'.repeat(300000) } }),
-    JSON.stringify({ t: 'req', id: 'd4', input: { text: '漢字'.repeat(400000) } }),
+    `"${'x'.repeat(M - 2)}"`, // exactly the limit: sent whole
+    JSON.stringify({ t: 'req', id: 'd2', input: { code: 'x'.repeat(M - 300) + '😀'.repeat(200) } }),
+    JSON.stringify({ t: 'req', id: 'd3', input: { file: 'ab"c\\\n\u0001'.repeat(400000) } }), // ~3 MB of escapes
+    JSON.stringify({ t: 'req', id: 'd4', input: { text: '漢字'.repeat(500000) } }), // 3 MB of CJK
     JSON.stringify({ end: true }),
   ];
 }
@@ -104,10 +105,10 @@ test('the Rust host relays byte for byte what the Node host does', { skip, timeo
   // Big frames went in parts under the browser's 1 MB limit; the extension joins them back.
   const frames = natives(rust.toBrowser);
   assert.ok(frames.some((f) => f.startsWith('{"t":"part"')));
-  // Parts are cut at 512 Ki UTF-16 units, as before: plain text stays under 1 MB. (Known, kept as it
-  // was: a part of mostly 3-byte characters or of escapes can exceed it; see the CHANGELOG.)
-  const sizes = frames.filter((f) => f.startsWith('{"t":"part"')).map((f) => [JSON.parse(f).pid, Buffer.byteLength(f)]);
-  assert.ok(sizes.filter(([pid]) => pid === 'p1').every(([, n]) => n <= 1024 * 1024), JSON.stringify(sizes));
+  // Every message fits the browser's 1 MB, escapes, multi-byte text and envelope included.
+  const sizes = frames.map((f) => Buffer.byteLength(f));
+  assert.ok(sizes.every((n) => n <= 1024 * 1024), JSON.stringify(sizes));
+  assert.ok(new Set(frames.filter((f) => f.startsWith('{"t":"part"')).map((f) => JSON.parse(f).pid)).size >= 3);
   const { createJoiner } = await import('../../packages/protocol/src/framing.ts');
   const join2 = createJoiner();
   const whole = frames.map((f) => join2(JSON.parse(f))).filter(Boolean);
