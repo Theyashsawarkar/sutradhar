@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `sutradhar.service` lists both sockets in `Sockets=`, so a daemon started at login also takes them from systemd (and after them) instead of binding the paths itself.
+
 - **`sutradhar mcp` is pranali, a 2 MB pipe, not a 78 MB Node process per
   agent.** The daemon serves MCP sessions itself on `mcp.sock` (beside its
   socket, 0600) and speaks [pranali](https://github.com/Theyashsawarkar/pranali)'s

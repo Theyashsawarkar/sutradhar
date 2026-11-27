@@ -101,6 +101,9 @@ PartOf=graphical-session.target
 
 [Service]
 ExecStart=${bin} daemon
+# Take both sockets from systemd even when started at login, not by a
+# connection (and start them first), so the daemon never binds them itself.
+Sockets=sutradhar.socket sutradhar-mcp.socket
 Restart=on-failure
 RestartSec=2
 # SIGTERM drains: no new calls, the running ones get up to 20 s.
