@@ -2,7 +2,7 @@
   "name": "sutradhar-workspace",
   "private": true,
   "type": "module",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "scripts": {
     "build": "node scripts/build.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",

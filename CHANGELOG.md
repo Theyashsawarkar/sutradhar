@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.12 (2026-11-27)
 
 - `sutradhar.service` lists both sockets in `Sockets=`, so a daemon started at login also takes them from systemd (and after them) instead of binding the paths itself.
 
